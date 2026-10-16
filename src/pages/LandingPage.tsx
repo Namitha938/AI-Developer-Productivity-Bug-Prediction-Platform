@@ -15,45 +15,23 @@ import {
   CheckCircle2,
   Cpu,
   Layers,
-  Terminal,
   Sun,
   Moon,
   ChevronRight,
-  ExternalLink,
-  Flame,
   Activity,
-  Play,
+  Flame,
+  Search,
+  Check,
+  ArrowUpRight,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const LandingPage: React.FC = () => {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const { isDark, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
 
-  const [activeCodeTab, setActiveCodeTab] = useState<'vulnerable' | 'fixed'>('vulnerable');
-
-  const vulnerableCode = `async def get_user_by_id(self, user_id: str, search_filter: str = ""):
-    # ⚠️ CRITICAL: Raw string interpolation -> SQL Injection (CWE-89)
-    query = f"SELECT * FROM users WHERE id = '{user_id}' AND status = '{search_filter}'"
-    
-    # ⚠️ HIGH: Connection opened without pooled context manager
-    conn = await asyncpg.connect(self.dsn)
-    active_pools.append(conn) # ⚠️ Memory leak: uncollected socket references
-    
-    row = await conn.fetchrow(query)
-    return dict(row) if row else None`;
-
-  const fixedCode = `async def get_user_by_id(self, user_id: str, search_filter: str = ""):
-    # ✅ SECURE: Parameterized bindings prevent SQL injection attacks
-    query = """
-        SELECT id, username, email, status, created_at 
-        FROM users 
-        WHERE id = $1 AND ($2 = '' OR status = $2)
-    """
-    # ✅ CLEAN: Managed connection pool with automatic release
-    async with self.pool.acquire() as conn:
-        row = await conn.fetchrow(query, user_id, search_filter)
-        return dict(row) if row else None`;
+  const [activeWorkflowTab, setActiveWorkflowTab] = useState<'detection' | 'optimization'>('detection');
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-indigo-500 selection:text-white">
@@ -79,17 +57,17 @@ export const LandingPage: React.FC = () => {
             <a href="#features" className="hover:text-foreground transition-colors">
               Features
             </a>
+            <a href="#visual-showcase" className="hover:text-foreground transition-colors">
+              AI Showcase
+            </a>
             <a href="#how-it-works" className="hover:text-foreground transition-colors">
               How It Works
             </a>
-            <a href="#editor-preview" className="hover:text-foreground transition-colors">
-              Live Playground
-            </a>
             <a href="#metrics" className="hover:text-foreground transition-colors">
-              Accuracy & Stats
+              Benchmarks
             </a>
             <Link to="/editor" className="text-primary hover:text-primary/80 transition-colors font-semibold">
-              AI Editor
+              Live IDE
             </Link>
           </nav>
 
@@ -108,7 +86,7 @@ export const LandingPage: React.FC = () => {
                 onClick={() => navigate('/dashboard')}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-white shadow-md shadow-primary/25 transition-all"
               >
-                <span>Go to Dashboard</span>
+                <span>Dashboard</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             ) : (
@@ -131,16 +109,16 @@ export const LandingPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden pt-12 pb-20 md:pt-20 md:pb-28">
-        {/* Background glow effects */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-gradient-to-tr from-indigo-500/20 via-violet-500/20 to-pink-500/10 rounded-full blur-3xl pointer-events-none" />
+      {/* Hero Section with High-Impact Imagery */}
+      <section className="relative overflow-hidden pt-12 pb-20 md:pt-16 md:pb-24">
+        {/* Ambient Gradient Glows */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-gradient-to-tr from-indigo-500/20 via-violet-500/20 to-pink-500/10 rounded-full blur-[120px] pointer-events-none" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center space-y-6">
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/25 shadow-xs animate-in fade-in duration-300">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/25 shadow-xs">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>DeepCode v4.2 Neural Engine Released — 94.8% Bug Detection F1</span>
+            <span>DeepCode v4.2 Neural Engine Active • 94.8% Bug Detection F1</span>
             <ChevronRight className="w-3 h-3 opacity-70" />
           </div>
 
@@ -154,167 +132,60 @@ export const LandingPage: React.FC = () => {
 
           {/* Subtitle */}
           <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            An intelligent developer platform combining static code analysis and graph neural networks to
-            detect error-prone patterns, benchmark algorithmic complexity, and boost engineering throughput.
+            Autonomous static code intelligence and neural bug prediction. Detect runtime flaws, benchmark algorithmic efficiency, and accelerate pull request approvals.
           </p>
 
           {/* CTAs */}
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <Link
               to="/editor"
-              className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/30 transition-all hover:scale-105"
+              className="flex items-center gap-2 px-6 py-3.5 rounded-xl text-sm font-bold bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/30 transition-all hover:scale-105"
             >
-              <Code2 className="w-4 h-4" /> Start AI Code Analysis Free
+              <Code2 className="w-4 h-4" /> Start Free Code Analysis
             </Link>
             <Link
               to="/dashboard"
-              className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold bg-muted hover:bg-muted/80 text-foreground border border-border shadow-xs transition-all"
+              className="flex items-center gap-2 px-6 py-3.5 rounded-xl text-sm font-semibold bg-muted hover:bg-muted/80 text-foreground border border-border shadow-xs transition-all"
             >
               <Activity className="w-4 h-4 text-primary" /> View Live Dashboard
             </Link>
           </div>
 
-          {/* Quick Metrics Strip */}
-          <div className="pt-8 flex flex-wrap items-center justify-center gap-6 sm:gap-12 text-xs sm:text-sm font-medium text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              <span>Zero Configuration Setup</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              <span>Full GitHub CI/CD Sync</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              <span>Monaco In-Editor Highlighting</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-              <span>Python, TS, Go, Rust Supported</span>
-            </div>
-          </div>
-        </div>
-      </section>
+          {/* Gorgeous Visual Platform Mockup Banner (Replacing Raw Code) */}
+          <div className="pt-10 max-w-5xl mx-auto relative">
+            <div className="relative rounded-3xl overflow-hidden border border-border/80 shadow-2xl bg-zinc-950 group">
+              {/* High-res platform visual render */}
+              <img
+                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1600&auto=format&fit=crop&q=80"
+                alt="BugPulse AI Platform Analytics & Code Intelligence"
+                className="w-full h-80 sm:h-96 md:h-[460px] object-cover object-top opacity-60 mix-blend-luminosity group-hover:scale-102 transition-transform duration-700"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
 
-      {/* Interactive Code Playground & Scanner Preview */}
-      <section id="editor-preview" className="py-12 bg-muted/20 border-y border-border">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-          <div className="text-center space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-500">
-              <Terminal className="w-3.5 h-3.5" /> Interactive Demonstration
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-              See Autonomous Bug Prediction in Action
-            </h2>
-            <p className="text-xs sm:text-sm text-muted-foreground max-w-xl mx-auto">
-              Inspect how the AI analyzer detects SQL injection and connection pooling leaks, then synthesizes an optimal refactoring fix.
-            </p>
-          </div>
-
-          {/* Interactive Shell Window */}
-          <div className="bg-[#1e1e1e] text-white rounded-2xl border border-border/80 shadow-2xl overflow-hidden">
-            {/* Window title bar */}
-            <div className="bg-[#18181b] px-4 py-3 border-b border-white/10 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-rose-500" />
-                  <div className="w-3 h-3 rounded-full bg-amber-500" />
-                  <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                </div>
-                <span className="text-xs font-mono text-zinc-400 ml-3">user_repository.py</span>
-              </div>
-
-              {/* Code state switch */}
-              <div className="flex items-center gap-1 bg-black/40 p-1 rounded-lg border border-white/10 text-xs">
-                <button
-                  onClick={() => setActiveCodeTab('vulnerable')}
-                  className={`px-3 py-1 rounded-md transition-colors ${
-                    activeCodeTab === 'vulnerable'
-                      ? 'bg-rose-500/20 text-rose-400 font-bold border border-rose-500/30'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  ⚠️ Vulnerable Code (Risk 84/100)
-                </button>
-                <button
-                  onClick={() => setActiveCodeTab('fixed')}
-                  className={`px-3 py-1 rounded-md transition-colors ${
-                    activeCodeTab === 'fixed'
-                      ? 'bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30'
-                      : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  ✨ AI Refactored (Risk 12/100)
-                </button>
-              </div>
-            </div>
-
-            {/* Code Body & Side Analysis Highlights */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-white/10">
-              {/* Code viewer */}
-              <div className="lg:col-span-8 p-4 sm:p-6 overflow-x-auto">
-                <pre className="font-mono text-xs sm:text-sm leading-relaxed text-zinc-200">
-                  {activeCodeTab === 'vulnerable' ? vulnerableCode : fixedCode}
-                </pre>
-              </div>
-
-              {/* Live Heuristics HUD */}
-              <div className="lg:col-span-4 p-5 space-y-4 bg-zinc-950/60 flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono text-zinc-400 uppercase tracking-wider font-semibold">
-                      Heuristic Verdict
-                    </span>
-                    <span
-                      className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${
-                        activeCodeTab === 'vulnerable'
-                          ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
-                          : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                      }`}
-                    >
-                      {activeCodeTab === 'vulnerable' ? 'High Risk (84%)' : 'Optimal (12%)'}
-                    </span>
+              {/* Floating Glassmorphic Telemetry Cards Over the Visual */}
+              <div className="absolute bottom-6 left-6 right-6 flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-card/85 backdrop-blur-xl rounded-2xl border border-border shadow-xl text-left">
+                <div className="flex items-center gap-3.5">
+                  <div className="p-3 rounded-xl bg-indigo-500/20 text-indigo-500 border border-indigo-500/30">
+                    <ShieldCheck className="w-6 h-6 text-indigo-400" />
                   </div>
-
-                  {activeCodeTab === 'vulnerable' ? (
-                    <div className="space-y-2 text-xs">
-                      <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300">
-                        <strong>SQL Injection (CWE-89)</strong>
-                        <p className="text-[11px] text-zinc-400 mt-0.5">
-                          Unsanitized f-string formatting exposes query structure to tampering.
-                        </p>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300">
-                        <strong>Resource Leak (Memory)</strong>
-                        <p className="text-[11px] text-zinc-400 mt-0.5">
-                          Unclosed raw socket connections accumulate in module-level array.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 text-xs">
-                      <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
-                        <strong>Parameterized Sanitization</strong>
-                        <p className="text-[11px] text-zinc-400 mt-0.5">
-                          Positional parameters ($1, $2) guarantee database injection immunity.
-                        </p>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
-                        <strong>Context Pooled Lifecycle</strong>
-                        <p className="text-[11px] text-zinc-400 mt-0.5">
-                          Connection automatically released on block termination. 0 byte leak.
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground">DeepCode Real-time Heuristics</h3>
+                    <p className="text-xs text-muted-foreground">Intercepted 157 critical vulnerabilities this quarter</p>
+                  </div>
                 </div>
 
-                <div className="pt-3 border-t border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-bold font-mono">
+                    94.8% F1 Score
+                  </div>
+                  <div className="px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-bold font-mono">
+                    &lt; 350ms Latency
+                  </div>
                   <Link
-                    to="/editor"
-                    className="w-full py-2 px-3 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                    to="/dashboard"
+                    className="p-2 rounded-xl bg-primary text-white hover:bg-primary/90 transition-colors shadow-sm"
                   >
-                    Open in Full Monaco Editor <ArrowRight className="w-3.5 h-3.5" />
+                    <ArrowUpRight className="w-4 h-4" />
                   </Link>
                 </div>
               </div>
@@ -323,85 +194,311 @@ export const LandingPage: React.FC = () => {
         </div>
       </section>
 
-      {/* 6 Core Pillars / Feature Grid */}
+      {/* Visual AI Studio Showcase (Replacing Raw Code Editor Block) */}
+      <section id="visual-showcase" className="py-16 bg-muted/20 border-y border-border">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+          <div className="text-center space-y-3">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-500">
+              <Zap className="w-3.5 h-3.5" /> Visual Intelligence Studio
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+              Autonomous Code Protection & Optimization
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground max-w-xl mx-auto">
+              Our graph neural models inspect AST call hierarchies to identify runtime vulnerabilities and synthesize instant refactorings.
+            </p>
+          </div>
+
+          {/* Visual Showcase Switcher */}
+          <div className="flex justify-center">
+            <div className="inline-flex p-1.5 rounded-2xl bg-card border border-border shadow-xs text-xs font-semibold">
+              <button
+                onClick={() => setActiveWorkflowTab('detection')}
+                className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
+                  activeWorkflowTab === 'detection'
+                    ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Bug className="w-4 h-4" /> 1. Predictive Risk Detection
+              </button>
+              <button
+                onClick={() => setActiveWorkflowTab('optimization')}
+                className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
+                  activeWorkflowTab === 'optimization'
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Sparkles className="w-4 h-4" /> 2. AI Generative Refactoring
+              </button>
+            </div>
+          </div>
+
+          {/* Visual Showcase Cards with Rich Imagery */}
+          {activeWorkflowTab === 'detection' ? (
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center bg-card rounded-3xl border border-rose-500/30 p-6 sm:p-8 shadow-xl relative overflow-hidden">
+              <div className="md:col-span-6 space-y-4">
+                <span className="px-3 py-1 rounded-full text-xs font-bold font-mono bg-rose-500/15 text-rose-500 border border-rose-500/30">
+                  Critical Vulnerability Interception
+                </span>
+                <h3 className="text-2xl font-bold text-foreground">
+                  SQL Injection & Memory Starvation Intercepted
+                </h3>
+                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                  DeepCode analyzes database access pathways and identified unparameterized string templates formatted directly into SQL execution calls, combined with unclosed socket connections.
+                </p>
+
+                <div className="space-y-2.5 pt-2 text-xs">
+                  <div className="flex items-center gap-2 text-rose-500 font-semibold">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span>CWE-89: Improper Neutralization of Special SQL Elements</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-amber-500 font-semibold">
+                    <Flame className="w-4 h-4 flex-shrink-0" />
+                    <span>Resource Starvation: Unbounded connection retention in pool</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-emerald-500 font-semibold">
+                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                    <span>Confidence Score: 98% AI Heuristic Certainty</span>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <Link
+                    to="/editor"
+                    className="inline-flex items-center gap-2 text-xs font-bold text-rose-500 hover:underline"
+                  >
+                    Open live scenario in Monaco Editor &rarr;
+                  </Link>
+                </div>
+              </div>
+
+              {/* Rich Visual Graphic Image for Detection */}
+              <div className="md:col-span-6 rounded-2xl overflow-hidden border border-border shadow-lg relative h-72 sm:h-80 bg-zinc-950">
+                <img
+                  src="https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1000&auto=format&fit=crop&q=80"
+                  alt="Security Risk Radar"
+                  className="w-full h-full object-cover opacity-70"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40" />
+                <div className="absolute top-4 right-4 bg-rose-500/90 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
+                  Risk Score: 84/100
+                </div>
+                <div className="absolute bottom-4 left-4 right-4 bg-black/75 backdrop-blur-md p-3.5 rounded-xl border border-white/10 text-white text-xs space-y-1">
+                  <div className="flex justify-between font-mono font-semibold">
+                    <span className="text-rose-400">Threat Level: Severe</span>
+                    <span>user_repository.py</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-300">
+                    AST Control Flow Graph verified arbitrary execution vector.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center bg-card rounded-3xl border border-emerald-500/30 p-6 sm:p-8 shadow-xl relative overflow-hidden">
+              <div className="md:col-span-6 space-y-4">
+                <span className="px-3 py-1 rounded-full text-xs font-bold font-mono bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
+                  Verified Autonomous Refactor
+                </span>
+                <h3 className="text-2xl font-bold text-foreground">
+                  1-Click Parameterized & Context-Pooled Fix
+                </h3>
+                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                  The model automatically generated positional query placeholders ($1, $2) and wrapped database transactions within managed asynchronous connection contexts.
+                </p>
+
+                <div className="space-y-2.5 pt-2 text-xs">
+                  <div className="flex items-center gap-2 text-emerald-500 font-semibold">
+                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                    <span>100% Immunity to dynamic SQL injection attacks</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-emerald-500 font-semibold">
+                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                    <span>0 bytes leaked: Guaranteed socket release on scope exit</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-indigo-500 font-semibold">
+                    <Zap className="w-4 h-4 flex-shrink-0" />
+                    <span>Execution Speedup: 18x faster with connection pooling</span>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <Link
+                    to="/editor"
+                    className="inline-flex items-center gap-2 text-xs font-bold text-emerald-500 hover:underline"
+                  >
+                    Apply refactor in web workspace &rarr;
+                  </Link>
+                </div>
+              </div>
+
+              {/* Rich Visual Graphic Image for Optimization */}
+              <div className="md:col-span-6 rounded-2xl overflow-hidden border border-border shadow-lg relative h-72 sm:h-80 bg-zinc-950">
+                <img
+                  src="https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=1000&auto=format&fit=crop&q=80"
+                  alt="AI Code Optimization"
+                  className="w-full h-full object-cover opacity-75"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40" />
+                <div className="absolute top-4 right-4 bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
+                  Risk Score: 12/100 (Clean)
+                </div>
+                <div className="absolute bottom-4 left-4 right-4 bg-black/75 backdrop-blur-md p-3.5 rounded-xl border border-white/10 text-white text-xs space-y-1">
+                  <div className="flex justify-between font-mono font-semibold">
+                    <span className="text-emerald-400">Production Ready</span>
+                    <span>18x Faster</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-300">
+                    Non-breaking drop-in replacement with verified unit coverage.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* 6 Core Pillars with Rich Visual Cards */}
       <section id="features" className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         <div className="text-center space-y-3">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary">
-            <Cpu className="w-3.5 h-3.5" /> Comprehensive Capability Suite
+            <Cpu className="w-3.5 h-3.5" /> Engineered for Developers
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
-            Built for Modern High-Velocity Engineering Teams
+            Six Intelligent Pillars of Code Quality
           </h2>
           <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl mx-auto">
-            From single-file script checks to multi-repository pull request continuous inspection, BugPulse AI covers every stage of the development lifecycle.
+            From single-file script checks to continuous multi-repo pull request inspections, BugPulse AI accelerates software reliability.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Card 1 */}
-          <div className="bg-card rounded-2xl border border-border p-6 space-y-3 hover:border-primary/50 transition-all shadow-xs">
-            <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-500 w-fit">
-              <Bug className="w-5 h-5" />
+          {/* Card 1: Bug Scoring */}
+          <div className="bg-card rounded-3xl border border-border overflow-hidden hover:border-primary/50 transition-all shadow-sm flex flex-col group">
+            <div className="h-44 overflow-hidden relative">
+              <img
+                src="https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=800&auto=format&fit=crop&q=80"
+                alt="Predictive Bug Scoring"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-transparent" />
+              <div className="absolute top-3 left-3 p-2 rounded-xl bg-card/80 backdrop-blur text-rose-500 border border-border">
+                <Bug className="w-4 h-4" />
+              </div>
             </div>
-            <h3 className="text-base font-bold text-foreground">Predictive Bug Scoring</h3>
-            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-              Proprietary AST call graph neural networks compute risk probability before runtime execution, catching null references, race conditions, and deadlocks.
-            </p>
+            <div className="p-6 space-y-2 flex-1">
+              <h3 className="text-base font-bold text-foreground">Predictive Bug Scoring</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                AST call graph neural networks compute risk probability before runtime execution, catching deadlocks, memory leaks, and injection hazards.
+              </p>
+            </div>
           </div>
 
-          {/* Card 2 */}
-          <div className="bg-card rounded-2xl border border-border p-6 space-y-3 hover:border-primary/50 transition-all shadow-xs">
-            <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-500 w-fit">
-              <Code2 className="w-5 h-5" />
+          {/* Card 2: Monaco Editor */}
+          <div className="bg-card rounded-3xl border border-border overflow-hidden hover:border-primary/50 transition-all shadow-sm flex flex-col group">
+            <div className="h-44 overflow-hidden relative">
+              <img
+                src="https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&auto=format&fit=crop&q=80"
+                alt="Monaco Web IDE"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-transparent" />
+              <div className="absolute top-3 left-3 p-2 rounded-xl bg-card/80 backdrop-blur text-indigo-500 border border-border">
+                <Code2 className="w-4 h-4" />
+              </div>
             </div>
-            <h3 className="text-base font-bold text-foreground">Monaco Editor Highlights</h3>
-            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-              Full VS Code Monaco editor experience in your browser with real-time gutter glyph markers, wavy underline alerts, and contextual fix suggestions.
-            </p>
+            <div className="p-6 space-y-2 flex-1">
+              <h3 className="text-base font-bold text-foreground">Monaco Web IDE Experience</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Full-featured VS Code Monaco editor in your browser with real-time gutter glyph markers, wavy underline alerts, and multi-language syntax highlighting.
+              </p>
+            </div>
           </div>
 
-          {/* Card 3 */}
-          <div className="bg-card rounded-2xl border border-border p-6 space-y-3 hover:border-primary/50 transition-all shadow-xs">
-            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-500 w-fit">
-              <Flame className="w-5 h-5" />
+          {/* Card 3: Code Smells & Complexity */}
+          <div className="bg-card rounded-3xl border border-border overflow-hidden hover:border-primary/50 transition-all shadow-sm flex flex-col group">
+            <div className="h-44 overflow-hidden relative">
+              <img
+                src="https://images.unsplash.com/photo-1504639725590-34d0984388bd?w=800&auto=format&fit=crop&q=80"
+                alt="Complexity & Efficiency"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-transparent" />
+              <div className="absolute top-3 left-3 p-2 rounded-xl bg-card/80 backdrop-blur text-amber-500 border border-border">
+                <Flame className="w-4 h-4" />
+              </div>
             </div>
-            <h3 className="text-base font-bold text-foreground">Code Smells & Clones</h3>
-            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-              Detect duplicate fragments across repositories with similarity percentages, anti-pattern detections, and structural cyclomatic complexity warnings.
-            </p>
+            <div className="p-6 space-y-2 flex-1">
+              <h3 className="text-base font-bold text-foreground">Complexity & Clone Radar</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Automatic Big-O Time & Space estimation, Halstead metric calculation, and cross-repo duplicate fragment identification.
+              </p>
+            </div>
           </div>
 
-          {/* Card 4 */}
-          <div className="bg-card rounded-2xl border border-border p-6 space-y-3 hover:border-primary/50 transition-all shadow-xs">
-            <div className="p-2.5 rounded-xl bg-primary/10 text-primary w-fit">
-              <Zap className="w-5 h-5" />
+          {/* Card 4: Generative Refactoring */}
+          <div className="bg-card rounded-3xl border border-border overflow-hidden hover:border-primary/50 transition-all shadow-sm flex flex-col group">
+            <div className="h-44 overflow-hidden relative">
+              <img
+                src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80"
+                alt="AI Refactoring"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-transparent" />
+              <div className="absolute top-3 left-3 p-2 rounded-xl bg-card/80 backdrop-blur text-primary border border-border">
+                <Zap className="w-4 h-4" />
+              </div>
             </div>
-            <h3 className="text-base font-bold text-foreground">1-Click AI Refactoring</h3>
-            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-              Side-by-side Before/After diff comparison that automatically synthesizes non-breaking, idiomatic fixes with performance gain estimates.
-            </p>
+            <div className="p-6 space-y-2 flex-1">
+              <h3 className="text-base font-bold text-foreground">1-Click AI Refactor Fixes</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Interactive Before vs After diff comparisons synthesizing safe, non-breaking patches with calculated performance speedup.
+              </p>
+            </div>
           </div>
 
-          {/* Card 5 */}
-          <div className="bg-card rounded-2xl border border-border p-6 space-y-3 hover:border-primary/50 transition-all shadow-xs">
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 w-fit">
-              <Github className="w-5 h-5" />
+          {/* Card 5: GitHub Sync */}
+          <div className="bg-card rounded-3xl border border-border overflow-hidden hover:border-primary/50 transition-all shadow-sm flex flex-col group">
+            <div className="h-44 overflow-hidden relative">
+              <img
+                src="https://images.unsplash.com/photo-1618401471353-b98aedd04e11?w=800&auto=format&fit=crop&q=80"
+                alt="Continuous GitHub Sync"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-transparent" />
+              <div className="absolute top-3 left-3 p-2 rounded-xl bg-card/80 backdrop-blur text-emerald-500 border border-border">
+                <Github className="w-4 h-4" />
+              </div>
             </div>
-            <h3 className="text-base font-bold text-foreground">Continuous GitHub Sync</h3>
-            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-              Automated pull request annotations, commit risk telemetry, and scheduled deep repository branch scans with live multi-stage progress bars.
-            </p>
+            <div className="p-6 space-y-2 flex-1">
+              <h3 className="text-base font-bold text-foreground">Continuous GitHub CI/CD</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Continuous pull request risk annotations, branch scanning with multi-stage progress bars, and commit risk telemetry.
+              </p>
+            </div>
           </div>
 
-          {/* Card 6 */}
-          <div className="bg-card rounded-2xl border border-border p-6 space-y-3 hover:border-primary/50 transition-all shadow-xs">
-            <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-500 w-fit">
-              <FolderKanban className="w-5 h-5" />
+          {/* Card 6: Kanban & Productivity */}
+          <div className="bg-card rounded-3xl border border-border overflow-hidden hover:border-primary/50 transition-all shadow-sm flex flex-col group">
+            <div className="h-44 overflow-hidden relative">
+              <img
+                src="https://images.unsplash.com/photo-1531482615713-2afd69097998?w=800&auto=format&fit=crop&q=80"
+                alt="Sprint Kanban & Team Velocity"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-transparent" />
+              <div className="absolute top-3 left-3 p-2 rounded-xl bg-card/80 backdrop-blur text-violet-500 border border-border">
+                <FolderKanban className="w-4 h-4" />
+              </div>
             </div>
-            <h3 className="text-base font-bold text-foreground">Sprint Kanban & Triage</h3>
-            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-              Directly convert detected bugs into sprint tasks, track developer velocity scores, and assign refactor ownership across engineering leads.
-            </p>
+            <div className="p-6 space-y-2 flex-1">
+              <h3 className="text-base font-bold text-foreground">Sprint Kanban & Team Triage</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Directly transition detected security bugs into sprint tasks, track developer velocity scores, and assign remediation tickets.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -418,28 +515,28 @@ export const LandingPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-            <div className="bg-card rounded-2xl border border-border p-6 space-y-3 relative shadow-xs">
-              <span className="text-3xl font-extrabold font-mono text-primary/30">01</span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="bg-card rounded-3xl border border-border p-6 space-y-3 shadow-xs">
+              <span className="text-3xl font-extrabold font-mono text-primary/40">01</span>
               <h3 className="text-base font-bold text-foreground">Ingest & Parse AST</h3>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Paste snippets directly into the Monaco editor or connect your GitHub repository with read permissions.
+              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                Paste snippets into the web IDE or connect your GitHub repository for continuous automated branch inspection.
               </p>
             </div>
 
-            <div className="bg-card rounded-2xl border border-border p-6 space-y-3 relative shadow-xs">
-              <span className="text-3xl font-extrabold font-mono text-primary/30">02</span>
+            <div className="bg-card rounded-3xl border border-border p-6 space-y-3 shadow-xs">
+              <span className="text-3xl font-extrabold font-mono text-primary/40">02</span>
               <h3 className="text-base font-bold text-foreground">DeepCode ML Inference</h3>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Our model compares syntax trees against 50M+ verified bug signatures, computing cyclomatic volume and CWE flaws.
+              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                Graph neural networks map call flows against 50M+ bug signatures, computing cyclomatic risk and CWE flaws.
               </p>
             </div>
 
-            <div className="bg-card rounded-2xl border border-border p-6 space-y-3 relative shadow-xs">
-              <span className="text-3xl font-extrabold font-mono text-primary/30">03</span>
+            <div className="bg-card rounded-3xl border border-border p-6 space-y-3 shadow-xs">
+              <span className="text-3xl font-extrabold font-mono text-primary/40">03</span>
               <h3 className="text-base font-bold text-foreground">Resolve & Refactor</h3>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Review the AI explanation, examine Before/After diffs, and apply optimal fixes in 1-click or file a sprint task.
+              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                Review root-cause breakdowns, examine Before/After diffs, and apply optimal fixes in 1-click or file sprint tasks.
               </p>
             </div>
           </div>
@@ -448,8 +545,9 @@ export const LandingPage: React.FC = () => {
 
       {/* Numbers / Stats Section */}
       <section id="metrics" className="py-16 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-gradient-to-tr from-indigo-950 via-indigo-900 to-violet-950 text-white rounded-3xl p-8 sm:p-12 shadow-2xl">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+        <div className="bg-gradient-to-tr from-indigo-950 via-indigo-900 to-violet-950 text-white rounded-3xl p-8 sm:p-12 shadow-2xl relative overflow-hidden">
+          <div className="absolute -right-20 -bottom-20 w-80 h-80 bg-violet-500/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center relative z-10">
             <div className="space-y-1">
               <p className="text-3xl sm:text-4xl font-extrabold font-mono text-indigo-300">94.8%</p>
               <p className="text-xs sm:text-sm text-indigo-200">Prediction F1-Score</p>
@@ -476,18 +574,18 @@ export const LandingPage: React.FC = () => {
           Ready to Elevate Your Code Quality?
         </h2>
         <p className="text-xs sm:text-sm text-muted-foreground max-w-lg mx-auto">
-          Join thousands of developers using BugPulse AI to automate static code analysis and predict defects.
+          Join thousands of developers using BugPulse AI to automate static code analysis and predict defects before deployment.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link
             to="/register"
-            className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/30 transition-all hover:scale-105"
+            className="flex items-center gap-2 px-6 py-3.5 rounded-xl text-sm font-bold bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/30 transition-all hover:scale-105"
           >
             Create Free Account <ArrowRight className="w-4 h-4" />
           </Link>
           <Link
             to="/editor"
-            className="px-6 py-3 rounded-xl text-sm font-semibold bg-muted hover:bg-muted/80 text-foreground border border-border transition-all"
+            className="px-6 py-3.5 rounded-xl text-sm font-semibold bg-muted hover:bg-muted/80 text-foreground border border-border transition-all"
           >
             Launch Web Editor Demo
           </Link>
@@ -528,4 +626,3 @@ export const LandingPage: React.FC = () => {
     </div>
   );
 };
-

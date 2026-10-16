@@ -9,11 +9,12 @@ import {
   ArrowRight,
   Loader2,
   ShieldCheck,
-  Bug,
   CheckCircle2,
-  Terminal,
-  Code2,
+  Zap,
   ArrowLeft,
+  Activity,
+  Cpu,
+  TrendingUp,
 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
@@ -46,106 +47,124 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen w-full flex bg-background text-foreground">
-      {/* Left Column: Image & AI Code Intelligence Showcase */}
+      {/* Left Column: Beautiful AI & Developer Visual Showcase (No raw code blocks) */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-zinc-950 overflow-hidden flex-col justify-between p-12 text-white">
-        {/* Background Image with Dark Gradient Overlay */}
+        {/* Vibrant High-Resolution 3D Neural Artwork Background */}
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-luminosity scale-105 transition-transform duration-1000 ease-out hover:scale-100"
+          className="absolute inset-0 bg-cover bg-center opacity-50 mix-blend-screen scale-105 transition-transform duration-1000 ease-out hover:scale-100"
           style={{
-            backgroundImage: `url('https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1600&auto=format&fit=crop&q=80')`,
+            backgroundImage: `url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1600&auto=format&fit=crop&q=80')`,
           }}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/70 to-indigo-950/60" />
-        <div className="absolute -top-32 -left-32 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-violet-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/75 to-indigo-950/70" />
+        
+        {/* Ambient Glows */}
+        <div className="absolute -top-24 -left-24 w-[450px] h-[450px] bg-indigo-500/25 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-[450px] h-[450px] bg-violet-500/25 rounded-full blur-[100px] pointer-events-none" />
 
-        {/* Top Branding */}
+        {/* Top Branding & Navigation */}
         <div className="relative z-10 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 group-hover:scale-105 transition-transform">
+            <div className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-indigo-500 via-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-xl shadow-indigo-500/40 group-hover:scale-105 transition-transform">
               <Sparkles className="w-5 h-5 animate-pulse" />
             </div>
             <div>
-              <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-zinc-200 to-indigo-200 bg-clip-text text-transparent">
+              <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-white via-zinc-200 to-indigo-200 bg-clip-text text-transparent">
                 BugPulse AI
               </span>
-              <p className="text-[10px] text-zinc-400 font-mono leading-none">Code Intelligence v2.4</p>
+              <p className="text-[11px] text-zinc-400 font-medium">Developer Productivity & Prediction Platform</p>
             </div>
           </Link>
 
           <Link
             to="/"
-            className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 backdrop-blur border border-white/10"
+            className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white transition-colors px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 backdrop-blur-md border border-white/15"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Back to Home
           </Link>
         </div>
 
-        {/* Center: Live Bug Prediction Card Showcase */}
-        <div className="relative z-10 max-w-md my-auto space-y-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 backdrop-blur">
-              <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-              <span>DeepCode Neural Engine Active</span>
+        {/* Center: Beautiful Visual Hero Card Showcase */}
+        <div className="relative z-10 my-auto space-y-6 max-w-lg">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 backdrop-blur-md shadow-lg shadow-indigo-500/20">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
+              <span>Next-Gen Machine Learning Code Intelligence</span>
             </div>
-            <h2 className="text-3xl font-extrabold tracking-tight text-white leading-tight">
-              Real-time static analysis meets generative refactoring.
+            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
+              Elevate Engineering Quality With Predictive AI.
             </h2>
-            <p className="text-sm text-zinc-400 leading-relaxed">
-              Predict bugs in your pull requests, benchmark algorithmic complexity, and fix memory leaks before deployment.
+            <p className="text-sm text-zinc-300 leading-relaxed">
+              Detect critical regressions, predict bug risks across pull requests, and optimize complex software systems with autonomous heuristics.
             </p>
           </div>
 
-          {/* Floating Glassmorphism Bug Alert Widget */}
-          <div className="bg-zinc-900/80 backdrop-blur-md rounded-2xl border border-white/15 p-4 shadow-2xl space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-rose-500/20 text-rose-400">
-                  <Bug className="w-4 h-4" />
-                </span>
-                <span className="font-mono font-semibold text-zinc-200">user_repository.py:L14</span>
+          {/* Graphical AI Shield & Telemetry Glass Card */}
+          <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl border border-white/20 p-6 shadow-2xl relative overflow-hidden space-y-5">
+            {/* Visual Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shadow-inner">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">DeepCode Neural Guard</h4>
+                  <p className="text-[11px] text-zinc-400">Autonomous Scanning Engine</p>
+                </div>
               </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                Critical (95/100)
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                Live Protection
               </span>
             </div>
 
-            <div className="bg-black/60 rounded-xl p-3 font-mono text-[11px] text-zinc-300 border border-white/5 space-y-1">
-              <p className="text-rose-400 font-semibold">// ⚠️ SQL Injection Vulnerability Detected</p>
-              <p className="text-zinc-400">query = f"SELECT * FROM users WHERE id = '{'{user_id}'}'"</p>
-              <p className="text-emerald-400 font-semibold pt-1">// ✨ Suggested AI Parameterized Binding:</p>
-              <p className="text-zinc-300">query = "SELECT * FROM users WHERE id = $1"</p>
+            {/* Visual Metrics Showcase */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-black/30 rounded-2xl p-3 border border-white/10 text-center space-y-1">
+                <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold block">Accuracy</span>
+                <span className="text-xl font-extrabold text-indigo-300 font-mono">94.8%</span>
+                <span className="text-[10px] text-emerald-400 block font-medium">Model F1</span>
+              </div>
+              <div className="bg-black/30 rounded-2xl p-3 border border-white/10 text-center space-y-1">
+                <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold block">Latency</span>
+                <span className="text-xl font-extrabold text-violet-300 font-mono">340ms</span>
+                <span className="text-[10px] text-zinc-400 block">Avg Inference</span>
+              </div>
+              <div className="bg-black/30 rounded-2xl p-3 border border-white/10 text-center space-y-1">
+                <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold block">Velocity</span>
+                <span className="text-xl font-extrabold text-emerald-300 font-mono">+58%</span>
+                <span className="text-[10px] text-emerald-400 block font-medium">PR Speed</span>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between text-[11px] text-zinc-400 pt-1">
-              <span className="flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>100% Injection Immune</span>
-              </span>
-              <span className="font-mono text-indigo-300">Latency: 340ms</span>
+            {/* Visual Quality Progress Indicator */}
+            <div className="space-y-2 pt-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-zinc-300 font-medium flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5 text-indigo-400" /> Platform Security Index
+                </span>
+                <span className="text-indigo-300 font-mono font-bold">98.2 / 100</span>
+              </div>
+              <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden border border-white/10">
+                <div className="h-full bg-gradient-to-r from-indigo-500 via-violet-500 to-emerald-400 rounded-full w-[98%]" />
+              </div>
             </div>
           </div>
         </div>
 
         {/* Bottom Social Proof */}
         <div className="relative z-10 pt-6 border-t border-white/10 flex items-center justify-between text-xs text-zinc-400">
-          <div className="flex items-center gap-4">
-            <div>
-              <strong className="text-white block text-sm font-mono font-bold">94.8%</strong>
-              <span>Prediction F1</span>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>150,000+ Repositories Protected</span>
             </div>
-            <div className="h-6 w-px bg-white/10" />
-            <div>
-              <strong className="text-white block text-sm font-mono font-bold">&lt; 350ms</strong>
-              <span>Inference Time</span>
-            </div>
-            <div className="h-6 w-px bg-white/10" />
-            <div>
-              <strong className="text-white block text-sm font-mono font-bold">150k+</strong>
-              <span>PRs Scanned</span>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>Zero Zero-Day Escapes</span>
             </div>
           </div>
-          <span className="text-[11px] text-zinc-500">Trusted by modern dev teams</span>
+          <span className="text-[11px] text-zinc-500">ISO-27001 Certified</span>
         </div>
       </div>
 
