@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="100%" height="100%" fill="none">
+  <defs>
+    <!-- Background Gradients -->
+    <radialGradient id="loginGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4F46E5" stop-opacity="0.35" />
+      <stop offset="45%" stop-color="#8B5CF6" stop-opacity="0.15" />
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0" />
+    </radialGradient>
+
+    <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.8" />
+      <stop offset="50%" stop-color="#6366F1" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#1E1B4B" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Shield Hologram Gradients -->
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#8B5CF6" />
+    </linearGradient>
+
+    <linearGradient id="shieldFill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0.95" />
+    </linearGradient>
+
+    <linearGradient id="nodeGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+
+    <linearGradient id="nodeGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+
+    <linearGradient id="nodeGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EF4444" />
+      <stop offset="100%" stop-color="#DC2626" />
+    </linearGradient>
+
+    <!-- Filter Shadows -->
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <filter id="cardShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <!-- Deep Canvas Backdrop -->
+  <rect width="600" height="600" rx="28" fill="#0B0F19" />
+  <rect width="600" height="600" rx="28" fill="url(#loginGlow)" />
+
+  <!-- Concentric Orbital Telemetry Rings -->
+  <g transform="translate(300, 270)">
+    <!-- Outer Ring -->
+    <circle cx="0" cy="0" r="210" fill="none" stroke="#6366F1" stroke-opacity="0.12" stroke-width="1.5" stroke-dasharray="6 6" />
+    
+    <!-- Middle Orbit with Coordinates -->
+    <circle cx="0" cy="0" r="160" fill="none" stroke="#818CF8" stroke-opacity="0.2" stroke-width="1.5" />
+    <circle cx="160" cy="0" r="4" fill="#38BDF8" />
+    <circle cx="-160" cy="0" r="3" fill="#818CF8" />
+    <circle cx="0" cy="-160" r="4" fill="#10B981" />
+    <circle cx="0" cy="160" r="3" fill="#F59E0B" />
+
+    <!-- Inner Core Orbit -->
+    <circle cx="0" cy="0" r="110" fill="none" stroke="#38BDF8" stroke-opacity="0.25" stroke-width="2" stroke-dasharray="12 8" />
+    <circle cx="0" cy="0" r="80" fill="url(#coreGlow)" />
+  </g>
+
+  <!-- Constellation / Neural Graph Connection Paths -->
+  <g stroke="#6366F1" stroke-opacity="0.3" stroke-width="1.5" stroke-dasharray="3 3">
+    <line x1="160" y1="140" x2="300" y2="230" />
+    <line x1="440" y1="140" x2="300" y2="230" />
+    <line x1="120" y1="320" x2="260" y2="330" />
+    <line x1="480" y1="310" x2="340" y2="330" />
+    <line x1="300" y1="230" x2="300" y2="370" />
+  </g>
+
+  <!-- Central Holographic Cyber Shield -->
+  <g transform="translate(300, 265)" filter="url(#cardShadow)">
+    <!-- Outer Luminous Shield Border -->
+    <path d="M 0 -90 L 70 -50 C 70 30 0 85 0 85 C 0 85 -70 30 -70 -50 Z" 
+          fill="url(#shieldFill)" 
+          stroke="url(#shieldGrad)" 
+          stroke-width="3" />
+
+    <!-- Inner Shield Circuit Lines -->
+    <path d="M 0 -70 L 52 -40 C 52 20 0 65 0 65 C 0 65 -52 20 -52 -40 Z" 
+          fill="none" 
+          stroke="#38BDF8" 
+          stroke-opacity="0.35" 
+          stroke-width="1.5" />
+
+    <!-- Central Neural AI Sparkle Core -->
+    <g transform="translate(0, -5)" filter="url(#softGlow)">
+      <polygon points="0,-24 7,-7 24,0 7,7 0,24 -7,7 -24,0 -7,-7" fill="#38BDF8" />
+      <circle cx="0" cy="0" r="4" fill="#FFFFFF" />
+    </g>
+
+    <!-- Scan Pulses Emanating from Core -->
+    <line x1="0" y1="-70" x2="0" y2="60" stroke="#818CF8" stroke-opacity="0.4" stroke-width="1.5" stroke-dasharray="4 4" />
+  </g>
+
+  <!-- Constellation Satellite Nodes -->
+  <!-- Node 1: Ingestion Gateway (Top Left) -->
+  <g transform="translate(160, 140)">
+    <circle cx="0" cy="0" r="18" fill="#1E293B" stroke="#38BDF8" stroke-width="2" />
+    <circle cx="0" cy="0" r="6" fill="#38BDF8" />
+    <text x="0" y="32" text-anchor="middle" fill="#94A3B8" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="600">INGRESS</text>
+  </g>
+
+  <!-- Node 2: Neural Classifier (Top Right) -->
+  <g transform="translate(440, 140)">
+    <circle cx="0" cy="0" r="18" fill="#1E293B" stroke="#10B981" stroke-width="2" />
+    <circle cx="0" cy="0" r="6" fill="#10B981" />
+    <text x="0" y="32" text-anchor="middle" fill="#94A3B8" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="600">GNN MODEL</text>
+  </g>
+
+  <!-- Node 3: Heuristic Audit (Bottom Left) -->
+  <g transform="translate(120, 320)">
+    <circle cx="0" cy="0" r="18" fill="#1E293B" stroke="#818CF8" stroke-width="2" />
+    <circle cx="0" cy="0" r="6" fill="#818CF8" />
+    <text x="0" y="32" text-anchor="middle" fill="#94A3B8" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="600">AST HEURISTICS</text>
+  </g>
+
+  <!-- Node 4: Auto-Remediation (Bottom Right) -->
+  <g transform="translate(480, 310)">
+    <circle cx="0" cy="0" r="18" fill="#1E293B" stroke="#F59E0B" stroke-width="2" />
+    <circle cx="0" cy="0" r="6" fill="#F59E0B" />
+    <text x="0" y="32" text-anchor="middle" fill="#94A3B8" font-family="'JetBrains Mono', monospace" font-size="10" font-weight="600">REMEDIATION</text>
+  </g>
+
+  <!-- Floating Holographic Badge 1: Top Center -->
+  <g transform="translate(195, 60)" filter="url(#cardShadow)">
+    <rect width="210" height="42" rx="12" fill="#1E293B" stroke="#38BDF8" stroke-opacity="0.6" stroke-width="1.5" />
+    <circle cx="22" cy="21" r="5" fill="#10B981" />
+    <text x="36" y="19" fill="#FFFFFF" font-family="Inter, system-ui, sans-serif" font-size="11" font-weight="700">Autonomous Code Guard</text>
+    <text x="36" y="32" fill="#38BDF8" font-family="'JetBrains Mono', monospace" font-size="10">● 99.8% Regressions Blocked</text>
+  </g>
+
+  <!-- Floating Holographic Badge 2: Bottom Center -->
+  <g transform="translate(180, 470)" filter="url(#cardShadow)">
+    <rect width="240" height="54" rx="14" fill="#0F172A" stroke="#6366F1" stroke-opacity="0.8" stroke-width="1.5" />
+    
+    <!-- Mini Metric 1 -->
+    <g transform="translate(18, 12)">
+      <text x="0" y="12" fill="#94A3B8" font-family="'JetBrains Mono', monospace" font-size="9">INFERENCE</text>
+      <text x="0" y="28" fill="#38BDF8" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="bold">&lt; 38ms</text>
+    </g>
+
+    <line x1="85" y1="12" x2="85" y2="42" stroke="#334155" stroke-width="1" />
+
+    <!-- Mini Metric 2 -->
+    <g transform="translate(98, 12)">
+      <text x="0" y="12" fill="#94A3B8" font-family="'JetBrains Mono', monospace" font-size="9">ACCURACY</text>
+      <text x="0" y="28" fill="#10B981" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="bold">91.4%</text>
+    </g>
+
+    <line x1="165" y1="12" x2="165" y2="42" stroke="#334155" stroke-width="1" />
+
+    <!-- Mini Metric 3 -->
+    <g transform="translate(178, 12)">
+      <text x="0" y="12" fill="#94A3B8" font-family="'JetBrains Mono', monospace" font-size="9">SARIF</text>
+      <text x="0" y="28" fill="#A855F7" font-family="'JetBrains Mono', monospace" font-size="13" font-weight="bold">v2.1.0</text>
+    </g>
+  </g>
+</svg>

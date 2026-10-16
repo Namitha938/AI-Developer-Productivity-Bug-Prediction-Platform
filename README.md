@@ -126,33 +126,34 @@ Generates production-optimized assets in `dist/`.
 ## 📂 Project Structure
 
 ```
-src/
-├── api/
-│   ├── client.ts             # Axios instance with refresh interceptors
-│   └── mockData.ts           # Realistic datasets: repos, bugs, code snippets, metrics
-├── components/
-│   ├── analysis/             # RiskGauge, ComplexityCard, CodeSmellList, DuplicateCodeList, AiExplanation, RefactorDiff
-│   ├── common/               # Badges, StatCard, EmptyState, Modal, LoadingSkeleton
-│   ├── editor/               # Monaco CodeEditor, LanguageSelect
-│   ├── github/               # ScanProgressBar, ConnectRepoModal
-│   ├── kanban/               # KanbanBoard with sprint columns
-│   ├── layout/               # Navbar, Sidebar, AppLayout
-│   └── notifications/        # NotificationDropdown
-├── pages/
-│   ├── admin/AdminPanelPage.tsx
-│   ├── analytics/AnalyticsReportsPage.tsx
-│   ├── auth/LoginPage.tsx & RegisterPage.tsx & ProtectedRoute.tsx
-│   ├── dashboard/DeveloperDashboard.tsx
-│   ├── editor/EditorAnalysisPage.tsx
-│   ├── github/GitHubIntegrationPage.tsx
-│   ├── issues/IssuesListPage.tsx & IssueDetailPage.tsx
-│   ├── notifications/NotificationsPage.tsx
-│   ├── projects/ProjectsPage.tsx & TaskBoardPage.tsx
-│   └── NotFoundPage.tsx
-├── stores/                   # Zustand stores (auth, theme, analysis, issue, project, notification)
-├── styles/globals.css        # Tailwind base and Monaco theme decorations
-├── types/index.ts            # Data models and TypeScript definitions
-├── App.tsx                   # Routes and TanStack Query provider
-└── main.tsx                  # Application bootstrap
+├── frontend/                     # React 18 + TypeScript + Vite + Tailwind CSS
+│   ├── public/                   # Static assets, SVGs & graphics
+│   ├── src/
+│   │   ├── api/                  # Axios instance & offline mock API layer
+│   │   ├── components/           # UI components (analysis, auth, editor, kanban, landing, profile)
+│   │   ├── pages/                # Route pages (Landing, Auth, Dashboard, IDE, Issues, Projects)
+│   │   ├── stores/               # Zustand stores (auth, theme, analysis, issue, project, notification)
+│   │   ├── styles/globals.css    # Tailwind base & custom themes
+│   │   ├── types/index.ts        # TypeScript data models & definitions
+│   │   ├── App.tsx               # Routes & TanStack Query provider
+│   │   └── main.tsx              # Application bootstrap
+│   ├── package.json              # Frontend dependencies & build scripts
+│   ├── tsconfig.json             # TypeScript compiler settings
+│   └── vite.config.ts            # Vite bundler configuration
+│
+├── backend/                      # Python FastAPI Backend Architecture
+│   ├── app/
+│   │   ├── api/v1/endpoints/     # REST routes (auth, users, analysis, issues, projects)
+│   │   ├── core/                 # Config, security, DB engine & WebSocket manager
+│   │   ├── models/               # SQLAlchemy ORM models
+│   │   ├── schemas/              # Pydantic request/response schemas
+│   │   ├── services/             # AST parsing & ML bug prediction services
+│   │   └── main.py               # FastAPI application entrypoint
+│   ├── tests/                    # Pytest test cases
+│   ├── requirements.txt          # Python package requirements
+│   └── .env.example              # Backend environment template
+│
+├── package.json                  # Root monorepo scripts (npm run dev / npm run build)
+└── PROJECT_STRUCTURE.md          # Comprehensive architecture & file reference
 ```
 
