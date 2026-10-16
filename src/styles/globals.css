@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 243 75% 59%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222 47% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222 47% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 243 75% 59%;
+
+    --radius: 0.625rem;
+  }
+
+  .dark {
+    --background: 224 25% 8%;
+    --foreground: 210 40% 98%;
+
+    --card: 223 23% 11%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 223 23% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 239 84% 67%;
+    --primary-foreground: 224 25% 8%;
+
+    --secondary: 217 19% 18%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 19% 18%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217 19% 18%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 45%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 19% 19%;
+    --input: 217 19% 19%;
+    --ring: 239 84% 67%;
+  }
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.3);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.5);
+}
+
+/* Monaco line decorations */
+.monaco-editor .risk-line-critical {
+  background: rgba(239, 68, 68, 0.18) !important;
+  border-left: 3px solid #ef4444 !important;
+}
+
+.monaco-editor .risk-line-high {
+  background: rgba(249, 115, 22, 0.16) !important;
+  border-left: 3px solid #f97316 !important;
+}
+
+.monaco-editor .risk-line-medium {
+  background: rgba(234, 179, 8, 0.14) !important;
+  border-left: 3px solid #eab308 !important;
+}
+
+.monaco-editor .risk-glyph-critical {
+  background: #ef4444;
+  border-radius: 50%;
+  width: 8px !important;
+  height: 8px !important;
+  margin-left: 5px;
+  margin-top: 5px;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
+}
+
+.monaco-editor .risk-glyph-high {
+  background: #f97316;
+  border-radius: 50%;
+  width: 8px !important;
+  height: 8px !important;
+  margin-left: 5px;
+  margin-top: 5px;
+}
+
