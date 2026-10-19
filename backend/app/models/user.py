@@ -1,52 +1,84 @@
-from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from datetime import datetime, timezone
+from typing import Any
 
-from app.core.database import Base
+from google.api_core.exceptions import AlreadyExists
+
+from app.core.firebase import db
 
 
-class User(Base):
-    __tablename__ = "users"
-    firebase_uid: Mapped[str | None] = mapped_column(
-    String(128),
-    unique=True,
-    index=True,
-    nullable=True,
-)
+USERS_COLLECTION = "users"
 
-    id: Mapped[int] = mapped_column(
-        Integer,
-        primary_key=True,
-        index=True,
+
+def user_to_response(uid: str, data: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": uid,
+        "username": data.get("username", ""),
+        "email": data.get("email", ""),
+        "full_name": data.get("full_name"),
+        "is_active": data.get("is_active", True),
+        "avatar_url": data.get("avatar_url", ""),
+        "created_at": data.get("created_at"),
+    }
+
+
+def get_user(uid: str) -> dict[str, Any] | None:
+    snapshot = db.collection(USERS_COLLECTION).document(uid).get()
+    return snapshot.to_dict() if snapshot.exists else None
+
+
+def create_user_if_missing(
+    uid: str,
+    email: str,
+    full_name: str | None = None,
+    avatar_url: str = "",
+) -> dict[str, Any]:
+    email = email.strip().lower()
+    user_ref = db.collection(USERS_COLLECTION).document(uid)
+
+    snapshot = user_ref.get()
+    if snapshot.exists:
+        data = snapshot.to_dict() or {}
+        if data.get("email", "").strip().lower() != email:
+            raise ValueError(
+                "The Firebase account email does not match its profile."
+            )
+        return data
+
+    matches = (
+        db.collection(USERS_COLLECTION)
+        .where("email", "==", email)
+        .limit(1)
+        .stream()
     )
-    username: Mapped[str] = mapped_column(
-        String(50),
-        unique=True,
-        index=True,
-        nullable=False,
-    )
-    email: Mapped[str] = mapped_column(
-        String(255),
-        unique=True,
-        index=True,
-        nullable=False,
-    )
-    hashed_password: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
-    )
-    full_name: Mapped[str | None] = mapped_column(
-        String(100),
-        nullable=True,
-    )
-    is_active: Mapped[bool] = mapped_column(
-        Boolean,
-        default=True,
-        nullable=False,
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
+    if any(match.id != uid for match in matches):
+        raise ValueError(
+            "This email already belongs to another user profile. "
+            "Resolve account linking before continuing."
+        )
+
+    username = email.split("@")[0][:50] or f"user_{uid[:8]}"
+    now = datetime.now(timezone.utc).isoformat()
+
+    data = {
+        "username": username,
+        "email": email,
+        "full_name": full_name or username,
+        "avatar_url": avatar_url,
+        "is_active": True,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+    try:
+        user_ref.create(data)
+        return data
+    except AlreadyExists:
+        # Another request created the document concurrently.
+        latest = user_ref.get()
+        existing = latest.to_dict() or {}
+        if existing.get("email", "").strip().lower() != email:
+            raise ValueError(
+                "The Firebase account email does not match its profile."
+            )
+        return existing

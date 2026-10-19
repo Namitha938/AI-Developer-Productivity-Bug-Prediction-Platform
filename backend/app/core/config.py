@@ -1,13 +1,18 @@
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     APP_NAME: str = "BugPulse AI API"
     APP_ENV: str = "development"
-    SECRET_KEY: str
-    DATABASE_URL: str
     FRONTEND_URL: str = "http://localhost:5173"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
     FIREBASE_SERVICE_ACCOUNT_PATH: str
+
+    # Cloudinary is used for file uploads, not database storage.
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

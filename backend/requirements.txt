@@ -3,11 +3,8 @@ fastapi
 uvicorn[standard]
 pydantic-settings
 python-dotenv
-sqlalchemy
-psycopg[binary]
-alembic
+firebase-admin
+cloudinary
+python-multipart
 httpx
 pytest
-pwdlib[argon2]
-PyJWT
-firebase-admin

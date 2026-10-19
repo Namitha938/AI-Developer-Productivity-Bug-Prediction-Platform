@@ -1,29 +1,14 @@
-from pydantic import BaseModel, ConfigDict, Field
 
-class UserRegister(BaseModel):
-    username: str = Field(min_length=3, max_length=50)
-    email: str = Field(min_length=5, max_length=255)
-    password: str = Field(min_length=8, max_length=128)
-    full_name: str | None = Field(
-        default=None,
-        max_length=100,
-    )
-
-
-class UserLogin(BaseModel):
-    email: str = Field(min_length=5, max_length=255)
-    password: str = Field(min_length=1, max_length=128)
+from pydantic import BaseModel, ConfigDict
 
 
 class UserResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(extra="ignore")
 
-    id: int
+    id: str
     username: str
     email: str
-    full_name: str | None
-    is_active: bool
-
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+    full_name: str | None = None
+    is_active: bool = True
+    avatar_url: str = ""
+    created_at: str | None = None
