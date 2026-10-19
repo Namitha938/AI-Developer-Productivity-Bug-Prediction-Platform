@@ -26,13 +26,16 @@ dist-ssr
 # Environment variables
 .env
 .env.*
-!.env.example
+.env.example
 frontend/.env
 frontend/.env.*
-!frontend/.env.example
+frontend/.env.example
 backend/.env
 backend/.env.*
 !backend/.env.example
+backend/secrets/
+#python virtual environment
+backend/.venv/
 
 # Build tools & cache
 .vite

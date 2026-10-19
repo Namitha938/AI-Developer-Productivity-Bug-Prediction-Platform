@@ -1,6 +1,21 @@
+
 import { create } from 'zustand';
-import { User, UserSession, TwoFactorSetupData } from '../types';
+import type { User, UserSession, TwoFactorSetupData } from '../types';
 import { mockAuthApi } from '../api/mock/mockAuthApi';
+import { apiClient } from '../api/client';
+import { auth } from '../config/firebase';
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  sendEmailVerification,
+  GoogleAuthProvider,
+  signInWithPopup,
+  updateProfile as updateFirebaseProfile,
+  type User as FirebaseUser,
+} from 'firebase/auth';
+
 
 interface AuthState {
   user: User | null;
@@ -33,70 +48,113 @@ interface AuthState {
   clearError: () => void;
 }
 
-const STORAGE_USER_KEY = 'bugpulse_mock_current_user';
-const STORAGE_ACCESS_KEY = 'codepulse_access_token';
-const STORAGE_REFRESH_KEY = 'codepulse_refresh_token';
 
-export const useAuthStore = create<AuthState>((set, get) => {
-  // Read saved session
-  const savedUserJson = localStorage.getItem(STORAGE_USER_KEY);
-  const savedToken = localStorage.getItem(STORAGE_ACCESS_KEY);
-  const savedRefresh = localStorage.getItem(STORAGE_REFRESH_KEY);
 
-  let initialUser: User | null = null;
-  if (savedUserJson && savedToken) {
-    try {
-      initialUser = JSON.parse(savedUserJson);
-    } catch {
-      initialUser = null;
-    }
-  }
+
+interface ApiUser {
+  id: string | number;
+  username: string;
+  email: string;
+  full_name?: string | null;
+  is_active: boolean;
+}
+
+const LEGACY_KEYS = [
+  'bugpulse_mock_current_user',
+  'codepulse_access_token',
+  'codepulse_refresh_token',
+  'codepulse_user',
+];
+
+function clearLegacySession() {
+  LEGACY_KEYS.forEach((key) => localStorage.removeItem(key));
+}
+
+function mapApiUser(apiUser: ApiUser, firebaseUser: FirebaseUser): User {
+  return {
+    id: String(apiUser.id),
+    name: apiUser.full_name || firebaseUser.displayName || apiUser.username,
+    username: apiUser.username,
+    email: apiUser.email,
+    avatarUrl: firebaseUser.photoURL || '',
+    role: 'developer',
+    title: 'Developer',
+    twoFactorEnabled: false,
+    emailVerified: firebaseUser.emailVerified,
+    createdAt:
+      firebaseUser.metadata.creationTime || new Date().toISOString(),
+    lastActive: new Date().toISOString(),
+  };
+}
+
+async function syncWithBackend(firebaseUser: FirebaseUser) {
+  const token = await firebaseUser.getIdToken();
+
+  // Creates the backend user record if it doesn't exist yet.
+  await apiClient.post('/auth/session');
+
+  const response = await apiClient.get<ApiUser>('/auth/me');
 
   return {
-    user: initialUser,
-    accessToken: savedToken,
-    refreshToken: savedRefresh,
-    isAuthenticated: !!initialUser,
-    isLoading: false,
-    error: null,
+    user: mapApiUser(response.data, firebaseUser),
+    token,
+  };
+}
 
-    twoFactorRequired: false,
-    tempToken: null,
-    pendingUser: null,
+export const useAuthStore = create<AuthState>((set, get) => {
 
-    login: async (email: string, pass: string) => {
-      set({ isLoading: true, error: null });
-      try {
-        const res = await mockAuthApi.login({ email, password: pass });
 
-        if (res.requires2FA) {
-          set({
-            twoFactorRequired: true,
-            tempToken: res.tempToken || null,
-            pendingUser: res.user || null,
-            isLoading: false,
-          });
-          return { success: false, requires2FA: true };
-        }
 
-        set({
-          user: res.user,
-          accessToken: res.accessToken,
-          refreshToken: res.refreshToken,
-          isAuthenticated: true,
-          twoFactorRequired: false,
-          tempToken: null,
-          pendingUser: null,
-          isLoading: false,
-        });
+  return {
+    user: null,
+  accessToken: null,
+  refreshToken: null,
+  isAuthenticated: false,
+  isLoading: true,
+  error: null,
 
-        return { success: true };
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Incorrect email or password.';
-        set({ error: msg, isLoading: false });
-        return { success: false };
-      }
-    },
+  twoFactorRequired: false,
+  tempToken: null,
+  pendingUser: null,
+
+  
+login: async (email: string, pass: string) => {
+  set({ isLoading: true, error: null });
+
+  try {
+    const credential = await signInWithEmailAndPassword(
+      auth,
+      email,
+      pass
+      
+    );
+
+    const { user, token } = await syncWithBackend(credential.user);
+
+    set({
+      user,
+      accessToken: token,
+      refreshToken: null,
+      isAuthenticated: true,
+      isLoading: false,
+      twoFactorRequired: false,
+      tempToken: null,
+      pendingUser: null,
+    });
+
+    return { success: true };
+  } catch (err: unknown) {
+    if (auth.currentUser) {
+  await signOut(auth).catch(() => undefined);
+}
+    const msg =
+      err instanceof Error ? err.message : 'Login failed.';
+
+    set({ error: msg, isLoading: false });
+    return { success: false };
+  }
+},
+
 
     verify2FA: async (code: string, isBackupCode = false) => {
       const tempToken = get().tempToken;
@@ -135,53 +193,132 @@ export const useAuthStore = create<AuthState>((set, get) => {
       });
     },
 
-    register: async (name: string, email: string, pass: string) => {
-      set({ isLoading: true, error: null });
-      try {
-        const res = await mockAuthApi.register({ name, email, password: pass });
-        set({ isLoading: false });
-        return { success: true, message: res.message };
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Registration failed.';
-        set({ error: msg, isLoading: false });
-        return { success: false };
-      }
-    },
 
-    loginWithOAuth: async (provider: 'google' | 'github') => {
-      set({ isLoading: true, error: null });
-      try {
-        // In mock mode, simulate successful OAuth grant
-        await new Promise((r) => setTimeout(r, 600));
+register: async (name: string, email: string, pass: string) => {
+  set({ isLoading: true, error: null });
 
-        const stored = await mockAuthApi.getCurrentUser();
-        const email = `${stored.username}@${provider === 'google' ? 'gmail.com' : 'github.com'}`;
-        const updated: User = {
-          ...stored,
-          email,
-          connectedAccounts: [
-            { provider, connected: true, email, connectedAt: new Date().toISOString() },
-            ...(stored.connectedAccounts || []).filter((a) => a.provider !== provider),
-          ],
-        };
+  try {
 
-        const accessToken = 'oauth_jwt_' + Math.random().toString(36).substring(2);
-        localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(updated));
-        localStorage.setItem(STORAGE_ACCESS_KEY, accessToken);
+const credential = await createUserWithEmailAndPassword(
+  auth,
+  email,
+  pass
+);
 
-        set({
-          user: updated,
-          accessToken,
-          isAuthenticated: true,
-          isLoading: false,
-        });
-        return true;
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'OAuth sign-in failed.';
-        set({ error: msg, isLoading: false });
-        return false;
-      }
-    },
+await updateFirebaseProfile(credential.user, {
+  displayName: name,
+});
+await sendEmailVerification(credential.user);
+// Create/sync the backend user record.
+await syncWithBackend(credential.user);
+
+// Registration must not leave the user authenticated.
+await signOut(auth);
+
+set({
+  user: null,
+  accessToken: null,
+  refreshToken: null,
+  isAuthenticated: false,
+  isLoading: false,
+  twoFactorRequired: false,
+  tempToken: null,
+  pendingUser: null,
+  error: null,
+});
+
+return {
+  success: true,
+  message: 'Account created successfully. Please sign in.',
+};
+
+  } catch (err: unknown) {
+    if (auth.currentUser) {
+      await signOut(auth).catch(() => undefined);
+    }
+
+    const msg =
+      err instanceof Error ? err.message : 'Registration failed.';
+
+    set({
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: msg,
+    });
+
+    return { success: false, message: msg };
+  }
+},
+
+
+
+
+loginWithOAuth: async (provider: 'google' | 'github') => {
+  set({ isLoading: true, error: null });
+
+  try {
+    if (provider === 'github') {
+      throw new Error(
+        'GitHub sign-in is not configured yet. Please use Google or email sign-in.'
+      );
+    }
+
+    const googleProvider = new GoogleAuthProvider();
+    googleProvider.setCustomParameters({
+      prompt: 'select_account',
+    });
+
+    const credential = await signInWithPopup(auth, googleProvider);
+
+    const { user, token } = await syncWithBackend(credential.user);
+
+    set({
+      user,
+      accessToken: token,
+      refreshToken: null,
+      isAuthenticated: true,
+      isLoading: false,
+      error: null,
+      twoFactorRequired: false,
+      tempToken: null,
+      pendingUser: null,
+    });
+
+    return true;
+  } catch (err: unknown) {
+    const firebaseError = err as { code?: string; message?: string };
+
+    // Closing the Google popup is not an authentication failure.
+    if (firebaseError.code === 'auth/popup-closed-by-user') {
+      set({ isLoading: false, error: null });
+      return false;
+    }
+
+    const message =
+      firebaseError.message || 'Google sign-in failed. Please try again.';
+
+    // Don't leave a newly authenticated Firebase account signed in if
+    // the backend session could not be established.
+    if (auth.currentUser) {
+      await signOut(auth).catch(() => undefined);
+    }
+
+    set({
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: message,
+    });
+
+    return false;
+  }
+},
+
 
     updateProfile: async (updates: Partial<User>) => {
       set({ isLoading: true, error: null });
@@ -305,20 +442,86 @@ export const useAuthStore = create<AuthState>((set, get) => {
       }
     },
 
-    logout: () => {
-      mockAuthApi.logout();
-      set({
-        user: null,
-        accessToken: null,
-        refreshToken: null,
-        isAuthenticated: false,
-        twoFactorRequired: false,
-        tempToken: null,
-        pendingUser: null,
-        error: null,
-      });
-    },
+
+logout: () => {
+  void signOut(auth).catch((err: unknown) => {
+    console.error('Firebase sign-out failed:', err);
+  });
+
+  clearLegacySession();
+
+  set({
+    user: null,
+    accessToken: null,
+    refreshToken: null,
+    isAuthenticated: false,
+    isLoading: false,
+    twoFactorRequired: false,
+    tempToken: null,
+    pendingUser: null,
+    error: null,
+  });
+},
+
 
     clearError: () => set({ error: null }),
   };
+});
+
+onAuthStateChanged(auth, async (firebaseUser) => {
+  if (!firebaseUser) {
+    clearLegacySession();
+
+    useAuthStore.setState({
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isAuthenticated: false,
+      isLoading: false,
+      twoFactorRequired: false,
+      tempToken: null,
+      pendingUser: null,
+    });
+
+    return;
+  }
+
+  useAuthStore.setState({ isLoading: true });
+
+  try {
+    const { user, token } = await syncWithBackend(firebaseUser);
+
+    // Ignore stale requests if this user has signed out
+    // or another account has signed in.
+    if (auth.currentUser?.uid !== firebaseUser.uid) {
+      return;
+    }
+
+    useAuthStore.setState({
+      user,
+      accessToken: token,
+      refreshToken: null,
+      isAuthenticated: true,
+      isLoading: false,
+      twoFactorRequired: false,
+      tempToken: null,
+      pendingUser: null,
+    });
+  } catch (err: unknown) {
+    // Don't let an old request overwrite the latest auth state.
+    if (auth.currentUser?.uid !== firebaseUser.uid) {
+      return;
+    }
+
+    console.error('Failed to restore authentication session:', err);
+
+    useAuthStore.setState({
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: 'Could not restore your session. Please sign in again.',
+    });
+  }
 });

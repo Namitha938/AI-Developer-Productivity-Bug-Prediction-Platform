@@ -23,3 +23,7 @@ class UserResponse(BaseModel):
     email: str
     full_name: str | None
     is_active: bool
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"

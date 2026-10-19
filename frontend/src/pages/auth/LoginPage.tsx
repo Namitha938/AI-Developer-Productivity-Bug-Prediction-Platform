@@ -29,6 +29,13 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+const registrationMessage = (
+  location.state as {
+    registrationSuccess?: boolean;
+    message?: string;
+    email?: string;
+  } | null
+)?.message;
   const from = (location.state as any)?.from?.pathname || '/dashboard';
   const { login, verify2FA, cancel2FA, twoFactorRequired, pendingUser, error, clearError, isLoading } =
     useAuthStore();
@@ -77,6 +84,7 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
+    
     <AuthLayout
       title={twoFactorRequired ? 'Two-Factor Authentication' : 'Welcome back'}
       subtitle={
@@ -165,7 +173,16 @@ export const LoginPage: React.FC = () => {
         </div>
       ) : (
         /* Standard Login View */
+        
         <div className="space-y-6">
+        {registrationMessage && (
+  <div
+    role="status"
+    className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300"
+  >
+    {registrationMessage}
+  </div>
+)}
           {/* OAuth Buttons */}
           <OAuthButtons onSuccess={() => navigate(from, { replace: true })} />
 

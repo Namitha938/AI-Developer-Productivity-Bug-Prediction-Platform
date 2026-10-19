@@ -69,21 +69,37 @@ export const RegisterPage: React.FC = () => {
 
   // 60-second cooldown timer
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
     if (resendCooldown > 0) {
       timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
     }
     return () => clearTimeout(timer);
   }, [resendCooldown]);
 
-  const onSubmit = async (data: RegisterFormData) => {
-    clearError();
-    const result = await registerUser(data.name, data.email, data.password);
-    if (result.success) {
-      setRegisteredEmail(data.email);
-      setResendCooldown(60);
-    }
-  };
+
+
+const onSubmit = async (data: RegisterFormData) => {
+  clearError();
+
+  const result = await registerUser(
+    data.name,
+    data.email,
+    data.password
+  );
+
+  if (result.success) {
+    navigate('/login', {
+      replace: true,
+      state: {
+        registrationSuccess: true,
+        message: 'Registration successful! Please log in with your new account.',
+        email: data.email,
+      },
+    });
+  }
+};
+
+
 
   const handleResend = () => {
     if (resendCooldown > 0) return;

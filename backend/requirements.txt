@@ -10,3 +10,4 @@ httpx
 pytest
 pwdlib[argon2]
 PyJWT
+firebase-admin
