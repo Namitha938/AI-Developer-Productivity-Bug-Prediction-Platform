@@ -81,12 +81,12 @@ export const IntegrationsSection: React.FC = () => {
             return (
               <div
                 key={idx}
-                className="p-6 rounded-2xl bg-[#fafafa] dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1.5 hover:border-indigo-400 dark:hover:border-indigo-600/70 transition-all duration-300 flex flex-col justify-between group cursor-default"
+                className={`animated-card card-shimmer animate-fade-in-up stagger-${idx + 1} p-6 rounded-2xl bg-[#fafafa] dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-400 dark:hover:border-indigo-600/70 flex flex-col justify-between group cursor-default`}
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 shadow-sm group-hover:scale-110 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
-                      <Icon className="w-5 h-5" />
+                    <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 shadow-sm group-hover:scale-115 group-hover:rotate-6 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+                      <Icon className="w-5 h-5 transition-transform duration-300" />
                     </div>
                     <span className="text-[11px] font-mono font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/60">
                       {item.status}
@@ -94,7 +94,7 @@ export const IntegrationsSection: React.FC = () => {
                   </div>
 
                   <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-200">
                       {item.name}
                     </h3>
                     <div className="text-xs text-indigo-600 dark:text-indigo-400 font-mono">
@@ -109,7 +109,7 @@ export const IntegrationsSection: React.FC = () => {
 
                 <div className="pt-4 mt-4 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between text-xs text-slate-500">
                   <span>Webhooks & REST API</span>
-                  <span className="font-mono text-indigo-600 dark:text-indigo-400 font-medium">Ready</span>
+                  <span className="font-mono text-indigo-600 dark:text-indigo-400 font-medium group-hover:scale-105 transition-transform">Ready</span>
                 </div>
               </div>
             );

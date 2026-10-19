@@ -28,21 +28,21 @@ export const StatCard: React.FC<StatCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`animated-card card-shimmer bg-card text-card-foreground rounded-2xl border border-border p-5 shadow-xs group cursor-pointer hover:border-primary/50`}
+      className="animated-card card-shimmer btn-press bg-card text-card-foreground rounded-2xl border border-border p-5 shadow-xs group cursor-pointer hover:border-primary/50"
     >
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors duration-200">
           {title}
         </p>
         <div
-          className={`p-2.5 rounded-xl ${iconBg} ${iconColor} transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 shadow-xs`}
+          className={`p-2.5 rounded-xl ${iconBg} ${iconColor} transition-all duration-300 group-hover:scale-115 group-hover:rotate-6 group-hover:shadow-md`}
         >
-          <Icon className="w-5 h-5" />
+          <Icon className="w-5 h-5 transition-transform duration-300" />
         </div>
       </div>
 
       <div className="mt-3 flex items-baseline justify-between">
-        <h3 className="text-2xl font-extrabold tracking-tight text-foreground font-mono group-hover:text-primary transition-colors">
+        <h3 className="text-2xl font-extrabold tracking-tight text-foreground font-mono group-hover:text-primary transition-colors duration-200">
           {value}
         </h3>
 

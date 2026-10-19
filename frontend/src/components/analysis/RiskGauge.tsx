@@ -32,7 +32,7 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({ score, size = 180 }) => {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center p-4">
+    <div className="flex flex-col items-center justify-center p-4 animate-scale-in">
       <div className="relative" style={{ width: size, height: size * 0.85 }}>
         <svg
           width={size}
@@ -49,11 +49,11 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({ score, size = 180 }) => {
             stroke="currentColor"
             strokeWidth={strokeWidth}
             strokeDasharray={`${arcLength} ${circumference}`}
-            className="text-muted/40"
+            className="text-muted/30"
             strokeLinecap="round"
           />
 
-          {/* Active Value Arc */}
+          {/* Active Value Arc with Glowing Shadow */}
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -65,12 +65,15 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({ score, size = 180 }) => {
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
             className="transition-all duration-1000 ease-out"
+            style={{
+              filter: `drop-shadow(0 0 8px ${color}88)`,
+            }}
           />
         </svg>
 
         {/* Center Content */}
         <div className="absolute inset-0 flex flex-col items-center justify-center -mt-3">
-          <span className="text-4xl font-extrabold tracking-tight font-mono text-foreground">
+          <span className="text-4xl font-extrabold tracking-tight font-mono text-foreground animate-fade-in">
             {score}
           </span>
           <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
@@ -79,7 +82,11 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({ score, size = 180 }) => {
         </div>
       </div>
 
-      <div className={`mt-1 px-3 py-1 rounded-full text-xs font-bold border ${badgeBg}`}>
+      <div
+        className={`mt-1 px-3.5 py-1 rounded-full text-xs font-bold border ${badgeBg} transition-all duration-300 ${
+          score >= 60 ? 'animate-pulse' : ''
+        }`}
+      >
         {label}
       </div>
     </div>

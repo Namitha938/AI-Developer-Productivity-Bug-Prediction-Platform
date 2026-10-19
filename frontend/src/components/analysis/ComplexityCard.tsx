@@ -19,7 +19,7 @@ export const ComplexityCard: React.FC<ComplexityCardProps> = ({ complexity }) =>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-3 bg-muted/40 rounded-lg border border-border/50">
+        <div className="animated-card card-shimmer p-3 bg-muted/40 rounded-xl border border-border/50 hover:border-primary/50 transition-colors">
           <p className="text-[11px] text-muted-foreground">Cyclomatic</p>
           <p className="text-lg font-bold font-mono mt-0.5 text-foreground">
             {complexity.cyclomaticComplexity}
@@ -29,7 +29,7 @@ export const ComplexityCard: React.FC<ComplexityCardProps> = ({ complexity }) =>
           </span>
         </div>
 
-        <div className="p-3 bg-muted/40 rounded-lg border border-border/50">
+        <div className="animated-card card-shimmer p-3 bg-muted/40 rounded-xl border border-border/50 hover:border-primary/50 transition-colors">
           <p className="text-[11px] text-muted-foreground">Cognitive</p>
           <p className="text-lg font-bold font-mono mt-0.5 text-foreground">
             {complexity.cognitiveComplexity}
@@ -37,7 +37,7 @@ export const ComplexityCard: React.FC<ComplexityCardProps> = ({ complexity }) =>
           <span className="text-[10px] text-muted-foreground">Readability strain</span>
         </div>
 
-        <div className="p-3 bg-muted/40 rounded-lg border border-border/50">
+        <div className="animated-card card-shimmer p-3 bg-muted/40 rounded-xl border border-border/50 hover:border-primary/50 transition-colors">
           <p className="text-[11px] text-muted-foreground">Halstead Volume</p>
           <p className="text-lg font-bold font-mono mt-0.5 text-foreground">
             {complexity.halsteadVolume}
@@ -45,7 +45,7 @@ export const ComplexityCard: React.FC<ComplexityCardProps> = ({ complexity }) =>
           <span className="text-[10px] text-muted-foreground">Operator density</span>
         </div>
 
-        <div className="p-3 bg-muted/40 rounded-lg border border-border/50">
+        <div className="animated-card card-shimmer p-3 bg-muted/40 rounded-xl border border-border/50 hover:border-primary/50 transition-colors">
           <p className="text-[11px] text-muted-foreground">Lines of Code</p>
           <p className="text-lg font-bold font-mono mt-0.5 text-foreground">
             {complexity.linesOfCode}

@@ -65,17 +65,17 @@ export const ArchitectureSection: React.FC = () => {
             return (
               <div
                 key={index}
-                className="relative rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 flex flex-col justify-between shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1.5 hover:border-indigo-400 dark:hover:border-indigo-600 transition-all duration-300 group cursor-default"
+                className={`animated-card card-shimmer animate-fade-in-up stagger-${index + 1} relative rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 flex flex-col justify-between shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-400 dark:hover:border-indigo-600 group cursor-default`}
               >
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-md group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                    <span className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-md group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-200">
                       {step.num}
                     </span>
-                    <Icon className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 group-hover:scale-110 transition-all" />
+                    <Icon className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 group-hover:scale-120 group-hover:rotate-6 transition-all duration-300" />
                   </div>
 
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-200">
                     {step.title}
                   </h3>
                   <div className="text-xs font-mono text-indigo-600 dark:text-indigo-400 mb-3">
@@ -89,7 +89,7 @@ export const ArchitectureSection: React.FC = () => {
 
                 <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[11px] font-mono text-slate-500">
                   <span>LATENCY</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold">&lt; 9ms</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold group-hover:scale-105 transition-transform">&lt; 9ms</span>
                 </div>
               </div>
             );

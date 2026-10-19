@@ -63,7 +63,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitl
           </div>
 
           {/* Interesting Visual AI Neural Shield Image */}
-          <div className="relative group max-w-sm mx-auto">
+          <div className="relative group max-w-sm mx-auto animate-float-gentle">
             <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-indigo-500 to-teal-400 opacity-20 blur-xl group-hover:opacity-35 transition-opacity" />
             <img
               src="/login-panel.svg"
@@ -74,17 +74,17 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitl
 
           {/* 3 Value Pillars */}
           <div className="grid grid-cols-3 gap-3 pt-2 text-left">
-            <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
+            <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm transition-all duration-300 hover:bg-white/10 hover:border-indigo-400/30">
               <div className="text-[10px] font-mono text-indigo-400 uppercase font-semibold">ACCURACY</div>
               <div className="text-sm font-bold text-white">91.4% F1</div>
               <div className="text-[10px] text-slate-400">Trained on Defect4J</div>
             </div>
-            <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
+            <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm transition-all duration-300 hover:bg-white/10 hover:border-teal-400/30">
               <div className="text-[10px] font-mono text-teal-400 uppercase font-semibold">LATENCY</div>
               <div className="text-sm font-bold text-white">&lt; 38ms</div>
               <div className="text-[10px] text-slate-400">Zero pipeline delay</div>
             </div>
-            <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm">
+            <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm transition-all duration-300 hover:bg-white/10 hover:border-purple-400/30">
               <div className="text-[10px] font-mono text-purple-400 uppercase font-semibold">PRIVACY</div>
               <div className="text-sm font-bold text-white">Zero Code</div>
               <div className="text-[10px] text-slate-400">Ephemeral audit only</div>
@@ -101,7 +101,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children, title, subtitl
 
       {/* Right panel: Form Container */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-5 sm:p-10 md:p-14">
-        <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none p-7 sm:p-9 space-y-6">
+        <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none p-7 sm:p-9 space-y-6 animate-fade-in transition-all">
           <div className="space-y-1.5 text-left">
             <div className="flex items-center gap-2 mb-3 lg:hidden">
               <div className="h-8 w-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md">

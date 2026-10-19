@@ -54,32 +54,32 @@ export const BenchmarksSection: React.FC = () => {
 
         {/* 3 Callout Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg hover:-translate-y-1 hover:border-indigo-400 dark:hover:border-indigo-600 transition-all duration-300 flex items-center gap-4 cursor-default">
-            <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400">
+          <div className="animated-card card-shimmer animate-fade-in-up stagger-1 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg hover:border-indigo-400 dark:hover:border-indigo-600 group flex items-center gap-4 cursor-default">
+            <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 group-hover:scale-115 group-hover:rotate-6 transition-all duration-300">
               <Clock className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">&lt; 45ms</div>
+              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">&lt; 45ms</div>
               <div className="text-xs text-slate-500">AST Inference Latency</div>
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg hover:-translate-y-1 hover:border-emerald-400 dark:hover:border-emerald-600 transition-all duration-300 flex items-center gap-4 cursor-default">
-            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400">
+          <div className="animated-card card-shimmer animate-fade-in-up stagger-2 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg hover:border-emerald-400 dark:hover:border-emerald-600 group flex items-center gap-4 cursor-default">
+            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 group-hover:scale-115 group-hover:rotate-6 transition-all duration-300">
               <Zap className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">99.98%</div>
+              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white group-hover:text-emerald-500 transition-colors">99.98%</div>
               <div className="text-xs text-slate-500">Parser Pipeline Uptime</div>
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg hover:-translate-y-1 hover:border-indigo-400 dark:hover:border-indigo-600 transition-all duration-300 flex items-center gap-4 cursor-default">
-            <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400">
+          <div className="animated-card card-shimmer animate-fade-in-up stagger-3 p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg hover:border-indigo-400 dark:hover:border-indigo-600 group flex items-center gap-4 cursor-default">
+            <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 group-hover:scale-115 group-hover:rotate-6 transition-all duration-300">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">Zero-Day</div>
+              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Zero-Day</div>
               <div className="text-xs text-slate-500">CWE Exposure Detection</div>
             </div>
           </div>

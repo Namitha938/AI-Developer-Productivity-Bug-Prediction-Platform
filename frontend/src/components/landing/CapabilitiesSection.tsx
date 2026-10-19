@@ -81,19 +81,19 @@ export const CapabilitiesSection: React.FC = () => {
             return (
               <div
                 key={i}
-                className="p-7 rounded-2xl bg-[#fafafa] dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600/70 transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1.5 group flex flex-col justify-between cursor-default"
+                className={`animated-card card-shimmer animate-fade-in-up stagger-${i + 1} p-7 rounded-2xl bg-[#fafafa] dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-600/70 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 group flex flex-col justify-between cursor-default`}
               >
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white group-hover:scale-110 transition-all duration-300 shadow-sm">
-                      <Icon className="w-5 h-5" />
+                    <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white group-hover:scale-115 group-hover:rotate-6 transition-all duration-300 shadow-sm group-hover:shadow-indigo-500/30">
+                      <Icon className="w-5 h-5 transition-transform duration-300" />
                     </div>
-                    <span className="text-[11px] font-mono font-medium px-2.5 py-0.5 rounded-full bg-slate-200/60 dark:bg-slate-800 text-slate-600 dark:text-slate-400 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-950/60 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                    <span className="text-[11px] font-mono font-medium px-2.5 py-0.5 rounded-full bg-slate-200/60 dark:bg-slate-800 text-slate-600 dark:text-slate-400 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-950/60 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-200">
                       {cap.tag}
                     </span>
                   </div>
 
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-200">
                     {cap.title}
                   </h3>
 
@@ -103,7 +103,7 @@ export const CapabilitiesSection: React.FC = () => {
                 </div>
 
                 <div className="pt-5 mt-5 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-                  <Sparkles className="w-3.5 h-3.5 group-hover:rotate-12 transition-transform" />
+                  <Sparkles className="w-3.5 h-3.5 group-hover:rotate-45 group-hover:scale-110 transition-transform duration-300" />
                   <span>Enterprise production-ready</span>
                 </div>
               </div>

@@ -48,18 +48,18 @@ export const DeveloperDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-900 via-indigo-800 to-violet-900 p-6 sm:p-8 text-white shadow-xl">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-900 via-indigo-800 to-violet-900 p-6 sm:p-8 text-white shadow-xl animate-fade-in">
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur text-xs font-semibold mb-3 border border-white/20">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-300" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur text-xs font-semibold mb-3 border border-white/20 animate-pulse-slow">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-300 animate-spin" style={{ animationDuration: '6s' }} />
               <span>AI Engine: 3 code smells intercepted today</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
               Welcome back, {user?.name?.split(' ')[0] || 'Developer'}! 👋
             </h1>
-            <p className="mt-1 text-xs sm:text-sm text-indigo-200 max-w-xl">
-              Your codebase health is sitting at <strong>78/100</strong>. AI bug prediction models
+            <p className="mt-1 text-xs sm:text-sm text-indigo-200 max-w-xl leading-relaxed">
+              Your codebase health is sitting at <strong className="text-white">78/100</strong>. AI bug prediction models
               have identified 1 critical database resource leak requiring immediate attention.
             </p>
           </div>
@@ -67,65 +67,74 @@ export const DeveloperDashboard: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2.5">
             <button
               onClick={() => navigate('/editor')}
-              className="px-4 py-2.5 rounded-xl bg-white text-indigo-900 text-xs font-bold hover:bg-white/90 transition-all flex items-center gap-2 shadow-lg"
+              className="btn-press px-4 py-2.5 rounded-xl bg-white text-indigo-900 text-xs font-bold hover:bg-white/90 hover:shadow-lg hover:shadow-white/20 transition-all flex items-center gap-2 cursor-pointer shadow-md"
             >
               <Code2 className="w-4 h-4 text-indigo-600" /> Open AI Code Editor
             </button>
             <button
               onClick={() => navigate('/github')}
-              className="px-4 py-2.5 rounded-xl bg-indigo-700/60 hover:bg-indigo-700 text-white text-xs font-semibold backdrop-blur transition-all flex items-center gap-2 border border-white/10"
+              className="btn-press px-4 py-2.5 rounded-xl bg-indigo-700/60 hover:bg-indigo-700 text-white text-xs font-semibold backdrop-blur transition-all flex items-center gap-2 border border-white/10 cursor-pointer hover:border-white/25"
             >
               <GitBranch className="w-4 h-4" /> Trigger Repo Scan
             </button>
           </div>
         </div>
 
-        {/* Decorative backdrop shapes */}
-        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-violet-500/20 rounded-full blur-3xl pointer-events-none" />
+        {/* Decorative backdrop shapes with gentle floating animation */}
+        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-violet-500/20 rounded-full blur-3xl pointer-events-none animate-float-slow" />
+        <div className="absolute right-1/3 -top-12 w-48 h-48 bg-indigo-400/15 rounded-full blur-2xl pointer-events-none animate-float-reverse" />
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary Cards with Staggered Entrance */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Open Bug Issues"
-          value={openIssues.length}
-          subtitle={`${criticalBugs.length} Critical severity`}
-          change={{ value: '-12% this week', isPositive: true }}
-          icon={Bug}
-          iconColor="text-rose-500"
-          iconBg="bg-rose-500/10"
-          onClick={() => navigate('/issues')}
-        />
-        <StatCard
-          title="Avg Repository Risk"
-          value="42 / 100"
-          subtitle="Moderate - 3 active repos"
-          change={{ value: '-6 pts reduction', isPositive: true }}
-          icon={ShieldAlert}
-          iconColor="text-amber-500"
-          iconBg="bg-amber-500/10"
-          onClick={() => navigate('/analytics')}
-        />
-        <StatCard
-          title="Recent AI Analyses"
-          value={history.length}
-          subtitle="Across Python & TypeScript"
-          change={{ value: '+8 analyses', isPositive: true }}
-          icon={Code2}
-          iconColor="text-primary"
-          iconBg="bg-primary/10"
-          onClick={() => navigate('/editor')}
-        />
-        <StatCard
-          title="Dev Velocity Score"
-          value="95 / 100"
-          subtitle="Top 5% engineering throughput"
-          change={{ value: '+4% boost', isPositive: true }}
-          icon={Zap}
-          iconColor="text-emerald-500"
-          iconBg="bg-emerald-500/10"
-          onClick={() => navigate('/analytics')}
-        />
+        <div className="animate-fade-in-up stagger-1">
+          <StatCard
+            title="Open Bug Issues"
+            value={openIssues.length}
+            subtitle={`${criticalBugs.length} Critical severity`}
+            change={{ value: '-12% this week', isPositive: true }}
+            icon={Bug}
+            iconColor="text-rose-500"
+            iconBg="bg-rose-500/10"
+            onClick={() => navigate('/issues')}
+          />
+        </div>
+        <div className="animate-fade-in-up stagger-2">
+          <StatCard
+            title="Avg Repository Risk"
+            value="42 / 100"
+            subtitle="Moderate - 3 active repos"
+            change={{ value: '-6 pts reduction', isPositive: true }}
+            icon={ShieldAlert}
+            iconColor="text-amber-500"
+            iconBg="bg-amber-500/10"
+            onClick={() => navigate('/analytics')}
+          />
+        </div>
+        <div className="animate-fade-in-up stagger-3">
+          <StatCard
+            title="Recent AI Analyses"
+            value={history.length}
+            subtitle="Across Python & TypeScript"
+            change={{ value: '+8 analyses', isPositive: true }}
+            icon={Code2}
+            iconColor="text-primary"
+            iconBg="bg-primary/10"
+            onClick={() => navigate('/editor')}
+          />
+        </div>
+        <div className="animate-fade-in-up stagger-4">
+          <StatCard
+            title="Dev Velocity Score"
+            value="95 / 100"
+            subtitle="Top 5% engineering throughput"
+            change={{ value: '+4% boost', isPositive: true }}
+            icon={Zap}
+            iconColor="text-emerald-500"
+            iconBg="bg-emerald-500/10"
+            onClick={() => navigate('/analytics')}
+          />
+        </div>
       </div>
 
       {/* Main Grid: Activity Chart & Recent Audit Feed */}
@@ -214,14 +223,14 @@ export const DeveloperDashboard: React.FC = () => {
           </div>
 
           <div className="space-y-3 flex-1 overflow-y-auto">
-            {issues.slice(0, 4).map((issue) => (
+            {issues.slice(0, 4).map((issue, idx) => (
               <div
                 key={issue.id}
                 onClick={() => navigate(`/issues/${issue.id}`)}
-                className="animated-card card-shimmer p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/50 cursor-pointer transition-all space-y-2 group hover:border-rose-500/50"
+                className={`animated-card card-shimmer p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/50 cursor-pointer transition-all space-y-2 group hover:border-rose-500/60 animate-fade-in-up stagger-${idx + 1}`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-muted-foreground">{issue.id}</span>
+                  <span className="text-[10px] font-mono text-muted-foreground group-hover:text-foreground transition-colors">{issue.id}</span>
                   <SeverityBadge severity={issue.severity} />
                 </div>
                 <h4 className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-1">
@@ -240,28 +249,29 @@ export const DeveloperDashboard: React.FC = () => {
       {/* Connected Projects & Recent Analyses Records */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Projects Overview */}
-        <div className="lg:col-span-1 bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm">
+        <div className="lg:col-span-1 bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm animate-fade-in">
           <div className="flex items-center justify-between border-b border-border pb-3">
             <h3 className="text-sm font-semibold flex items-center gap-2">
               <GitBranch className="w-4 h-4 text-indigo-500" /> Active Repositories
             </h3>
             <button
               onClick={() => navigate('/github')}
-              className="text-xs text-primary hover:underline"
+              className="text-xs text-primary hover:underline font-medium"
             >
               Manage
             </button>
           </div>
 
           <div className="space-y-3">
-            {projects.map((proj) => (
+            {projects.map((proj, idx) => (
               <div
                 key={proj.id}
-                className="animated-card card-shimmer p-3 rounded-xl border border-border bg-muted/20 space-y-2 hover:border-primary/50"
+                onClick={() => navigate('/github')}
+                className={`animated-card card-shimmer p-3.5 rounded-xl border border-border bg-muted/20 space-y-2 hover:border-primary/60 cursor-pointer animate-fade-in-up stagger-${idx + 1}`}
               >
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold font-mono text-foreground">{proj.name}</h4>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                  <h4 className="text-xs font-bold font-mono text-foreground group-hover:text-primary transition-colors">{proj.name}</h4>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shadow-xs">
                     {proj.healthScore}% health
                   </span>
                 </div>

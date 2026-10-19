@@ -119,10 +119,10 @@ export const GitHubIntegrationPage: React.FC = () => {
       {/* Tab 1: Repositories */}
       {activeTab === 'repos' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {repos.map((repo) => (
+          {repos.map((repo, idx) => (
             <div
               key={repo.id}
-              className="animated-card card-shimmer bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm hover:border-primary/50 transition-all"
+              className={`animated-card card-shimmer animate-fade-in-up stagger-${idx + 1} bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm hover:border-primary/60`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="space-y-1">
@@ -142,7 +142,7 @@ export const GitHubIntegrationPage: React.FC = () => {
                 </div>
 
                 <span
-                  className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
+                  className={`text-xs px-2.5 py-0.5 rounded-full font-bold border transition-all ${
                     repo.scanStatus === 'passed'
                       ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
                       : repo.scanStatus === 'warning'
@@ -176,7 +176,7 @@ export const GitHubIntegrationPage: React.FC = () => {
                 <button
                   onClick={() => triggerRepoScan(repo.id)}
                   disabled={isScanningRepo}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary/90 text-white transition-colors shadow-sm disabled:opacity-50"
+                  className="btn-press flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary/90 text-white transition-all shadow-sm hover:shadow disabled:opacity-50 cursor-pointer"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" /> Trigger Full Scan
                 </button>

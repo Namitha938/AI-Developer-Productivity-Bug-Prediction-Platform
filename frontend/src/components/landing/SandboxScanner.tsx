@@ -206,24 +206,33 @@ export const SandboxScanner: React.FC = () => {
                   className="w-full bg-transparent p-4 font-mono text-xs sm:text-sm text-slate-100 focus:outline-none resize-none leading-relaxed selection:bg-indigo-600 selection:text-white"
                   placeholder="// Paste arbitrary function here..."
                 />
+
+                {/* Laser Scanning Beam Overlay */}
+                {isScanning && (
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
+                    <div className="w-full h-1 bg-gradient-to-r from-transparent via-indigo-400 to-transparent shadow-[0_0_16px_#818cf8] animate-scan" />
+                    <div className="absolute inset-0 bg-indigo-600/10 animate-pulse-slow backdrop-blur-[0.5px]" />
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Run Button Bar */}
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <span className="text-xs text-slate-500 dark:text-slate-400">
+              <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping inline-block" />
                 Deterministic AST parser + graph neural network weights
               </span>
               <button
                 type="button"
                 onClick={handleRunScan}
                 disabled={isScanning || !code.trim()}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white shadow-md shadow-indigo-600/20 transition-all focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none cursor-pointer"
+                className="btn-press w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white shadow-md shadow-indigo-600/20 hover:shadow-indigo-600/40 transition-all focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none cursor-pointer"
               >
                 {isScanning ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Analyzing AST...</span>
+                    <span>Analyzing AST & Graph Neural Nets...</span>
                   </>
                 ) : (
                   <>
@@ -236,46 +245,46 @@ export const SandboxScanner: React.FC = () => {
           </div>
 
           {/* Right Column: Deterministic AST & ML Output (lg:col-span-6) */}
-          <div className="lg:col-span-6 p-6 sm:p-7 bg-slate-50/50 dark:bg-slate-950/40 flex flex-col justify-between space-y-6">
+          <div className="lg:col-span-6 p-6 sm:p-7 bg-slate-50/50 dark:bg-slate-950/40 flex flex-col justify-between space-y-6 animate-fade-in">
             {/* Top Score Banner */}
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-slate-800/80">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-pulse" />
                   <span className="text-sm font-semibold text-slate-900 dark:text-white">
                     Prediction & Vulnerability Assessment
                   </span>
                 </div>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${riskBg}`}>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${riskBg} transition-all duration-300`}>
                   {analysisResult.riskCategory}
                 </span>
               </div>
 
               {/* Gauge & Metrics Row */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
+                <div className="animated-card card-shimmer p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
                   <div className="text-[11px] font-medium text-slate-500">Risk Score</div>
-                  <div className={`text-xl font-bold font-mono ${riskColor}`}>
+                  <div className={`text-xl font-bold font-mono ${riskColor} transition-all duration-300`}>
                     {riskScore}
                     <span className="text-xs font-normal text-slate-400">/100</span>
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
+                <div className="animated-card card-shimmer p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
                   <div className="text-[11px] font-medium text-slate-500">Cyclomatic</div>
                   <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">
                     {analysisResult.complexity.cyclomaticComplexity}
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
+                <div className="animated-card card-shimmer p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
                   <div className="text-[11px] font-medium text-slate-500">Cognitive</div>
                   <div className="text-xl font-bold font-mono text-slate-900 dark:text-white">
                     {analysisResult.complexity.cognitiveComplexity}
                   </div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
+                <div className="animated-card card-shimmer p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
                   <div className="text-[11px] font-medium text-slate-500">Flaws</div>
                   <div className="text-xl font-bold font-mono text-indigo-600 dark:text-indigo-400">
                     {analysisResult.riskyLines.length + analysisResult.codeSmells.length}

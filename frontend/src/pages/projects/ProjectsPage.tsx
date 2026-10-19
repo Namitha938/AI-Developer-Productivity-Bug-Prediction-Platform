@@ -65,10 +65,10 @@ export const ProjectsPage: React.FC = () => {
 
       {/* Projects Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map((project) => (
+        {projects.map((project, idx) => (
           <div
             key={project.id}
-            className="animated-card card-shimmer bg-card rounded-3xl border border-border p-6 shadow-sm space-y-4 hover:border-primary/50 transition-all flex flex-col justify-between"
+            className={`animated-card card-shimmer animate-fade-in-up stagger-${idx + 1} bg-card rounded-3xl border border-border p-6 shadow-sm space-y-4 hover:border-primary/60 flex flex-col justify-between`}
           >
             <div className="space-y-3">
               <div className="flex items-center justify-between">

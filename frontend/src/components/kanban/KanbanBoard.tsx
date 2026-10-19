@@ -123,10 +123,10 @@ export const KanbanBoard: React.FC = () => {
                   colTasks.map((task) => (
                     <div
                       key={task.id}
-                      className="animated-card card-shimmer bg-card text-card-foreground rounded-xl border border-border p-3.5 shadow-xs space-y-2 hover:border-primary/60 transition-all group"
+                      className="animated-card card-shimmer bg-card text-card-foreground rounded-xl border border-border p-3.5 shadow-xs space-y-2 hover:border-primary/60 hover:shadow-md cursor-grab active:cursor-grabbing group animate-scale-in"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono text-muted-foreground">{task.id}</span>
+                        <span className="text-[10px] font-mono text-muted-foreground group-hover:text-primary transition-colors">{task.id}</span>
                         {getPriorityBadge(task.priority)}
                       </div>
 
