@@ -1,0 +1,275 @@
+/* Scoped Styles for Tracepoint Landing Page */
+
+:root {
+  --tp-bg-page: #f8fafc;
+  --tp-bg-surface: #ffffff;
+  --tp-bg-card: #ffffff;
+  --tp-bg-card-secondary: #f1f5f9;
+  --tp-border: rgba(226, 232, 240, 0.9);
+  --tp-border-hover: rgba(99, 102, 241, 0.5);
+  --tp-text-primary: #0f172a;
+  --tp-text-secondary: #475569;
+  --tp-text-muted: #64748b;
+  --tp-blue: #2563eb;
+  --tp-blue-hover: #1d4ed8;
+  --tp-indigo: #6366f1;
+  --tp-green: #10b981;
+  --tp-red: #ef4444;
+  --tp-amber: #f59e0b;
+}
+
+.dark {
+  --tp-bg-page: #0a0f1d;
+  --tp-bg-surface: #0c1322;
+  --tp-bg-card: #10172a;
+  --tp-bg-card-secondary: #141d32;
+  --tp-border: rgba(148, 163, 184, 0.12);
+  --tp-border-hover: rgba(99, 102, 241, 0.65);
+  --tp-text-primary: #f8fafc;
+  --tp-text-secondary: #94a3b8;
+  --tp-text-muted: #64748b;
+}
+
+.tp-container {
+  max-width: 1520px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .tp-container {
+    padding-left: 3rem;
+    padding-right: 3rem;
+  }
+}
+
+/* ==========================================================================
+   Page Load & Hero Animations
+   ========================================================================== */
+
+@keyframes tpHeroFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tp-hero-stagger-0 {
+  animation: tpHeroFadeIn 600ms cubic-bezier(0.16, 1, 0.3, 1) 0ms both;
+}
+
+.tp-hero-stagger-1 {
+  animation: tpHeroFadeIn 600ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+}
+
+.tp-hero-stagger-2 {
+  animation: tpHeroFadeIn 600ms cubic-bezier(0.16, 1, 0.3, 1) 160ms both;
+}
+
+.tp-hero-stagger-3 {
+  animation: tpHeroFadeIn 600ms cubic-bezier(0.16, 1, 0.3, 1) 240ms both;
+}
+
+.tp-hero-stagger-4 {
+  animation: tpHeroFadeIn 600ms cubic-bezier(0.16, 1, 0.3, 1) 320ms both;
+}
+
+.tp-hero-stagger-5 {
+  animation: tpHeroFadeIn 600ms cubic-bezier(0.16, 1, 0.3, 1) 400ms both;
+}
+
+@keyframes tpFloatGentle {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.tp-float-card {
+  animation: tpFloatGentle 6s ease-in-out infinite;
+}
+
+@keyframes tpDotPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+}
+
+.tp-dot-pulse {
+  animation: tpDotPulse 2.4s ease-in-out infinite;
+}
+
+/* ==========================================================================
+   Scroll Reveal (IntersectionObserver Driven)
+   ========================================================================== */
+
+.tp-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.tp-reveal.is-revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tp-reveal-left {
+  opacity: 0;
+  transform: translateX(-16px);
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.tp-reveal-left.is-revealed {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* ==========================================================================
+   Card Styling, Hover & Focus
+   ========================================================================== */
+
+.tp-card {
+  background-color: var(--tp-bg-card);
+  border: 1px solid var(--tp-border);
+  border-radius: 1rem;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.25s ease;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  outline: none;
+}
+
+.dark .tp-card {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
+}
+
+.tp-card:hover,
+.tp-card:focus-visible {
+  transform: translateY(-4px);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 16px 32px -8px rgba(99, 102, 241, 0.18),
+              0 0 20px 0 rgba(99, 102, 241, 0.12);
+}
+
+.dark .tp-card:hover,
+.dark .tp-card:focus-visible {
+  border-color: rgba(99, 102, 241, 0.65);
+  box-shadow: 0 16px 36px -8px rgba(99, 102, 241, 0.25),
+              0 0 24px 0 rgba(99, 102, 241, 0.18);
+}
+
+/* ==========================================================================
+   Primary Buttons & Links Hover & Focus
+   ========================================================================== */
+
+.tp-btn-primary {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s ease,
+              background-color 0.2s ease;
+  outline: none;
+}
+
+.tp-btn-primary:hover,
+.tp-btn-primary:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.4);
+}
+
+.tp-btn-primary:hover .tp-arrow-icon,
+.tp-btn-primary:focus-visible .tp-arrow-icon {
+  transform: translateX(4px);
+}
+
+.tp-arrow-icon {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Navbar Links with growing underline from left */
+.tp-nav-link {
+  position: relative;
+  display: inline-block;
+  outline: none;
+}
+
+.tp-nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background-color: #3b82f6;
+  border-radius: 9999px;
+  transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tp-nav-link:hover::after,
+.tp-nav-link:focus-visible::after {
+  width: 100%;
+}
+
+/* ==========================================================================
+   Live Sandbox & Latency Pulses
+   ========================================================================== */
+
+@keyframes tpPulseOnce {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.tp-pulse-once {
+  animation: tpPulseOnce 0.8s ease-out 1;
+}
+
+@keyframes tpFlawSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tp-flaw-item {
+  animation: tpFlawSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.tp-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Scroll smooth */
+html {
+  scroll-behavior: smooth;
+}

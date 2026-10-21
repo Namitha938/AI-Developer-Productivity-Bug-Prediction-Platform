@@ -92,6 +92,7 @@ export function App() {
               <Route path="/dashboard" element={<DeveloperDashboard />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/settings" element={<ProfilePage />} />
+              <Route path="/security" element={<ProfilePage />} />
               <Route path="/editor" element={<EditorAnalysisPage />} />
               <Route path="/issues" element={<IssuesListPage />} />
               <Route path="/issues/:id" element={<IssueDetailPage />} />

@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { AuthLayout } from '../../components/auth/AuthLayout';
 import { PasswordInput } from '../../components/auth/PasswordInput';
-import { PasswordStrength } from '../../components/auth/PasswordStrength';
 import { mockAuthApi } from '../../api/mock/mockAuthApi';
-import { AlertCircle, CheckCircle2, Loader2, ArrowRight, KeyRound } from 'lucide-react';
+import { CheckCircle2, Shield, Loader2, Check } from 'lucide-react';
 
 export const ResetPasswordPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const token = searchParams.get('token');
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -17,15 +14,19 @@ export const ResetPasswordPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Check if token exists
-  const isInvalidToken = !token || token === 'expired' || token === 'invalid';
+  const hasMinLength = password.length >= 12;
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[^A-Za-z0-9]/.test(password);
+
+  const strengthScore = [hasMinLength, hasUppercase, hasNumber, hasSpecial].filter(Boolean).length;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (password.length < 8) {
-      setError('Password must be at least 8 characters long.');
+      setError('Password must meet complexity requirements.');
       return;
     }
     if (password !== confirmPassword) {
@@ -35,11 +36,11 @@ export const ResetPasswordPage: React.FC = () => {
 
     setLoading(true);
     try {
-      await mockAuthApi.resetPassword({ token: token || '', password });
+      await mockAuthApi.resetPassword({ token: 'mock-token', password });
       setIsSuccess(true);
       setTimeout(() => {
-        navigate('/login?resetSuccess=true');
-      }, 2500);
+        navigate('/login');
+      }, 1800);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to reset password.';
       setError(msg);
@@ -50,105 +51,137 @@ export const ResetPasswordPage: React.FC = () => {
 
   return (
     <AuthLayout
-      title="Create new password"
-      subtitle="Ensure your new password meets complexity guidelines"
+      category="PASSWORD RECOVERY"
+      title="Set a new password"
+      subtitle="Create a secure password for your Tracepoint workspace."
+      topLinkText="Back to sign in"
+      topLinkLabel="Return to sign in"
+      topLinkTo="/login"
     >
-      {/* Invalid or Expired Token State */}
-      {isInvalidToken ? (
-        <div className="space-y-5 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 mx-auto flex items-center justify-center">
-            <AlertCircle className="w-7 h-7" />
+      {isSuccess ? (
+        <div className="space-y-4 text-center py-6">
+          <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center">
+            <CheckCircle2 className="w-6 h-6" />
           </div>
-
-          <div className="space-y-1.5">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              Invalid or Expired Link
-            </h3>
-            <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
-              This password reset link is invalid or has expired for security reasons. Please request a new password reset link.
-            </p>
-          </div>
-
-          <div className="pt-2">
-            <Link
-              to="/forgot-password"
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
-            >
-              <span>Request new link</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-        </div>
-      ) : isSuccess ? (
-        /* Success State */
-        <div className="space-y-5 text-center animate-in fade-in duration-300">
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900/50 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center">
-            <CheckCircle2 className="w-7 h-7" />
-          </div>
-
-          <div className="space-y-1.5">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              Password Reset Complete!
-            </h3>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Your password has been securely updated. Redirecting you to the sign-in console...
-            </p>
-          </div>
-
-          <div className="pt-2">
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
-            >
-              <span>Sign in now</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+            Password updated successfully
+          </h3>
+          <p className="text-xs text-slate-500">
+            Redirecting you to the sign in page...
+          </p>
         </div>
       ) : (
-        /* Reset Form */
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-              <span>{error}</span>
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 text-xs text-red-600 dark:text-red-300">
+              {error}
             </div>
           )}
 
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
               New password
             </label>
             <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
-              autoComplete="new-password"
+              placeholder="Enter new password"
+              required
             />
-            <PasswordStrength password={password} />
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Confirm new password
+              Confirm password
             </label>
             <PasswordInput
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Repeat new password"
-              autoComplete="new-password"
+              placeholder="Re-enter new password"
+              required
             />
+          </div>
+
+          {/* Password strength */}
+          <div className="space-y-1 pt-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-medium">Password strength</span>
+              <span className="text-[11px] text-slate-400">
+                {password.length === 0
+                  ? 'Enter a password to assess strength'
+                  : strengthScore <= 2
+                  ? 'Weak'
+                  : strengthScore === 3
+                  ? 'Medium'
+                  : 'Strong'}
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5 h-1.5 pt-0.5">
+              {[1, 2, 3, 4].map((step) => (
+                <div
+                  key={step}
+                  className={`h-1.5 rounded-full transition-colors ${
+                    strengthScore >= step
+                      ? strengthScore >= 4
+                        ? 'bg-emerald-500'
+                        : strengthScore >= 3
+                        ? 'bg-blue-500'
+                        : 'bg-amber-500'
+                      : 'bg-slate-200 dark:bg-slate-800'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Requirements Checklist */}
+          <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 space-y-2 text-xs">
+            <span className="text-slate-500 font-medium block text-[11px]">Requirements</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-600 dark:text-slate-400 text-[11px]">
+              <div className="flex items-center gap-1.5">
+                <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${hasMinLength ? 'bg-emerald-500 text-white' : 'border border-slate-300 dark:border-slate-600'}`}>
+                  {hasMinLength && <Check className="w-2.5 h-2.5" />}
+                </div>
+                <span>At least 12 characters</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${hasUppercase ? 'bg-emerald-500 text-white' : 'border border-slate-300 dark:border-slate-600'}`}>
+                  {hasUppercase && <Check className="w-2.5 h-2.5" />}
+                </div>
+                <span>One uppercase letter</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${hasNumber ? 'bg-emerald-500 text-white' : 'border border-slate-300 dark:border-slate-600'}`}>
+                  {hasNumber && <Check className="w-2.5 h-2.5" />}
+                </div>
+                <span>One number</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[10px] ${hasSpecial ? 'bg-emerald-500 text-white' : 'border border-slate-300 dark:border-slate-600'}`}>
+                  {hasSpecial && <Check className="w-2.5 h-2.5" />}
+                </div>
+                <span>One special character</span>
+              </div>
+            </div>
           </div>
 
           <button
             type="submit"
-            disabled={loading || !password || !confirmPassword}
-            className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white shadow-md shadow-indigo-600/25 transition-all cursor-pointer"
+            disabled={loading}
+            className="w-full py-2.5 px-4 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer mt-2"
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            <span>Update password</span>
-            <ArrowRight className="w-4 h-4" />
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            <span>Reset password</span>
           </button>
+
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 justify-center pt-1">
+            <Shield className="w-3.5 h-3.5 text-blue-500" />
+            <span>Secure password reset · Use a unique password for your Tracepoint workspace</span>
+          </div>
+
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center leading-relaxed pt-1">
+            By continuing, you agree to our Terms of Service and Privacy Policy. Your code stays yours.
+          </p>
         </form>
       )}
     </AuthLayout>

@@ -1,344 +1,340 @@
 import React from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
-import { useIssueStore } from '../../stores/issueStore';
-import { useProjectStore } from '../../stores/projectStore';
-import { useAnalysisStore } from '../../stores/analysisStore';
-import { StatCard } from '../../components/common/StatCard';
-import { SeverityBadge, StatusBadge, RiskPill } from '../../components/common/Badges';
 import {
-  mockWeeklyActivity,
-  mockAnalysisAuditRecords,
-} from '../../api/mockData';
-import {
-  Bug,
-  ShieldAlert,
-  Code2,
-  Zap,
-  ArrowRight,
-  GitBranch,
-  Play,
-  CheckCircle2,
-  Sparkles,
-  ExternalLink,
+  AlertTriangle,
   Plus,
+  ArrowUpRight,
+  TrendingUp,
+  ChevronRight,
+  ExternalLink,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
   CartesianGrid,
-  BarChart,
-  Bar,
 } from 'recharts';
-import { useNavigate } from 'react-router-dom';
+
+const trendData = [
+  { date: 'Sep 21', quality: 28, maintainability: 35 },
+  { date: 'Sep 25', quality: 26, maintainability: 38 },
+  { date: 'Sep 28', quality: 44, maintainability: 46 },
+  { date: 'Oct 02', quality: 40, maintainability: 48 },
+  { date: 'Oct 05', quality: 58, maintainability: 54 },
+  { date: 'Oct 08', quality: 56, maintainability: 58 },
+  { date: 'Oct 12', quality: 68, maintainability: 62 },
+  { date: 'Oct 15', quality: 65, maintainability: 66 },
+  { date: 'Oct 19', quality: 84, maintainability: 74 },
+];
 
 export const DeveloperDashboard: React.FC = () => {
   const { user } = useAuthStore();
-  const { issues } = useIssueStore();
-  const { projects, repos } = useProjectStore();
-  const { history } = useAnalysisStore();
   const navigate = useNavigate();
 
-  const openIssues = issues.filter((i) => i.status !== 'resolved');
-  const criticalBugs = issues.filter((i) => i.severity === 'critical' && i.status !== 'resolved');
+  const firstName = user?.name ? user.name.split(' ')[0] : 'Maya';
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-900 via-indigo-800 to-violet-900 p-6 sm:p-8 text-white shadow-xl animate-fade-in">
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur text-xs font-semibold mb-3 border border-white/20 animate-pulse-slow">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-300 animate-spin" style={{ animationDuration: '6s' }} />
-              <span>AI Engine: 3 code smells intercepted today</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-              Welcome back, {user?.name?.split(' ')[0] || 'Developer'}! 👋
-            </h1>
-            <p className="mt-1 text-xs sm:text-sm text-indigo-200 max-w-xl leading-relaxed">
-              Your codebase health is sitting at <strong className="text-white">78/100</strong>. AI bug prediction models
-              have identified 1 critical database resource leak requiring immediate attention.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              onClick={() => navigate('/editor')}
-              className="btn-press px-4 py-2.5 rounded-xl bg-white text-indigo-900 text-xs font-bold hover:bg-white/90 hover:shadow-lg hover:shadow-white/20 transition-all flex items-center gap-2 cursor-pointer shadow-md"
-            >
-              <Code2 className="w-4 h-4 text-indigo-600" /> Open AI Code Editor
-            </button>
-            <button
-              onClick={() => navigate('/github')}
-              className="btn-press px-4 py-2.5 rounded-xl bg-indigo-700/60 hover:bg-indigo-700 text-white text-xs font-semibold backdrop-blur transition-all flex items-center gap-2 border border-white/10 cursor-pointer hover:border-white/25"
-            >
-              <GitBranch className="w-4 h-4" /> Trigger Repo Scan
-            </button>
-          </div>
+    <div className="space-y-6 font-sans">
+      {/* 1. Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            Good morning, {firstName}.
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            Wednesday, October 21 · Here's where your code and focus stand.
+          </p>
         </div>
 
-        {/* Decorative backdrop shapes with gentle floating animation */}
-        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-violet-500/20 rounded-full blur-3xl pointer-events-none animate-float-slow" />
-        <div className="absolute right-1/3 -top-12 w-48 h-48 bg-indigo-400/15 rounded-full blur-2xl pointer-events-none animate-float-reverse" />
+        <button
+          onClick={() => navigate('/editor')}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs cursor-pointer transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>New analysis</span>
+        </button>
       </div>
 
-      {/* Summary Cards with Staggered Entrance */}
+      {/* 2. Critical Alert Banner */}
+      <div className="p-3.5 rounded-xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 flex items-start gap-3">
+        <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+        <div className="text-xs">
+          <span className="font-semibold text-rose-900 dark:text-rose-200">
+            Your attention is needed in payments-service
+          </span>
+          <p className="text-rose-700 dark:text-rose-300/90 mt-0.5">
+            2 high-risk predictions on main. Review the payment capture path before the next release.
+          </p>
+        </div>
+      </div>
+
+      {/* 3. Top Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="animate-fade-in-up stagger-1">
-          <StatCard
-            title="Open Bug Issues"
-            value={openIssues.length}
-            subtitle={`${criticalBugs.length} Critical severity`}
-            change={{ value: '-12% this week', isPositive: true }}
-            icon={Bug}
-            iconColor="text-rose-500"
-            iconBg="bg-rose-500/10"
-            onClick={() => navigate('/issues')}
-          />
+        <div className="p-4 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Code quality</p>
+          <div className="mt-2 flex items-baseline gap-1">
+            <span className="text-2xl font-bold text-slate-900 dark:text-white">87</span>
+            <span className="text-xs text-slate-400">/ 100</span>
+          </div>
+          <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1 flex items-center gap-0.5">
+            <span>↑ 6 points this month</span>
+          </p>
         </div>
-        <div className="animate-fade-in-up stagger-2">
-          <StatCard
-            title="Avg Repository Risk"
-            value="42 / 100"
-            subtitle="Moderate - 3 active repos"
-            change={{ value: '-6 pts reduction', isPositive: true }}
-            icon={ShieldAlert}
-            iconColor="text-amber-500"
-            iconBg="bg-amber-500/10"
-            onClick={() => navigate('/analytics')}
-          />
+
+        <div className="p-4 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Open predictions</p>
+          <div className="mt-2">
+            <span className="text-2xl font-bold text-slate-900 dark:text-white">12</span>
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">
+            <span className="text-rose-500">2 high</span> · <span className="text-amber-500">4 medium</span> · <span className="text-slate-400">6 low</span>
+          </p>
         </div>
-        <div className="animate-fade-in-up stagger-3">
-          <StatCard
-            title="Recent AI Analyses"
-            value={history.length}
-            subtitle="Across Python & TypeScript"
-            change={{ value: '+8 analyses', isPositive: true }}
-            icon={Code2}
-            iconColor="text-primary"
-            iconBg="bg-primary/10"
-            onClick={() => navigate('/editor')}
-          />
+
+        <div className="p-4 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Focus time this week</p>
+          <div className="mt-2">
+            <span className="text-2xl font-bold text-slate-900 dark:text-white">24.6 h</span>
+          </div>
+          <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+            <span>↑ 12% vs. last week</span>
+          </p>
         </div>
-        <div className="animate-fade-in-up stagger-4">
-          <StatCard
-            title="Dev Velocity Score"
-            value="95 / 100"
-            subtitle="Top 5% engineering throughput"
-            change={{ value: '+4% boost', isPositive: true }}
-            icon={Zap}
-            iconColor="text-emerald-500"
-            iconBg="bg-emerald-500/10"
-            onClick={() => navigate('/analytics')}
-          />
+
+        <div className="p-4 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Pull requests merged</p>
+          <div className="mt-2">
+            <span className="text-2xl font-bold text-slate-900 dark:text-white">18</span>
+          </div>
+          <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+            <span>↑ 4 vs. last week</span>
+          </p>
         </div>
       </div>
 
-      {/* Main Grid: Activity Chart & Recent Audit Feed */}
+      {/* 4. Middle Section: Chart + Priorities */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Activity Chart (Commits vs Scans vs Bugs) */}
-        <div className="lg:col-span-2 bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
-            <div>
-              <h3 className="text-base font-semibold text-foreground">
-                Developer Activity & Bug Interceptions
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Commits, AST scans, and bugs prevented over the last 7 days
-              </p>
-            </div>
-            <div className="flex items-center gap-3 text-xs">
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" /> Commits
-              </span>
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Bugs Prevented
-              </span>
-            </div>
-          </div>
-
-          <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={mockWeeklyActivity} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorCommits" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="colorBugs" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-border/40" />
-                <XAxis dataKey="day" stroke="currentColor" className="text-muted-foreground text-xs" />
-                <YAxis stroke="currentColor" className="text-muted-foreground text-xs" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'rgba(23, 23, 28, 0.95)',
-                    borderColor: 'rgba(255, 255, 255, 0.1)',
-                    borderRadius: '0.75rem',
-                    fontSize: '12px',
-                    color: '#fff',
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="commits"
-                  stroke="#6366f1"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorCommits)"
-                  name="Commits"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="bugsFound"
-                  stroke="#ef4444"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorBugs)"
-                  name="Bugs Intercepted"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* High Priority Bugs Watchlist */}
-        <div className="bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm flex flex-col">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <Bug className="w-4 h-4 text-rose-500" /> High-Risk Issues
-            </h3>
-            <button
-              onClick={() => navigate('/issues')}
-              className="text-xs text-primary hover:underline flex items-center gap-1 font-medium"
-            >
-              View all &rarr;
-            </button>
-          </div>
-
-          <div className="space-y-3 flex-1 overflow-y-auto">
-            {issues.slice(0, 4).map((issue, idx) => (
-              <div
-                key={issue.id}
-                onClick={() => navigate(`/issues/${issue.id}`)}
-                className={`animated-card card-shimmer p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/50 cursor-pointer transition-all space-y-2 group hover:border-rose-500/60 animate-fade-in-up stagger-${idx + 1}`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-muted-foreground group-hover:text-foreground transition-colors">{issue.id}</span>
-                  <SeverityBadge severity={issue.severity} />
-                </div>
-                <h4 className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-1">
-                  {issue.title}
-                </h4>
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span className="truncate max-w-[140px]">{issue.project}</span>
-                  <StatusBadge status={issue.status} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Connected Projects & Recent Analyses Records */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Projects Overview */}
-        <div className="lg:col-span-1 bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm animate-fade-in">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <GitBranch className="w-4 h-4 text-indigo-500" /> Active Repositories
-            </h3>
-            <button
-              onClick={() => navigate('/github')}
-              className="text-xs text-primary hover:underline font-medium"
-            >
-              Manage
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {projects.map((proj, idx) => (
-              <div
-                key={proj.id}
-                onClick={() => navigate('/github')}
-                className={`animated-card card-shimmer p-3.5 rounded-xl border border-border bg-muted/20 space-y-2 hover:border-primary/60 cursor-pointer animate-fade-in-up stagger-${idx + 1}`}
-              >
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold font-mono text-foreground group-hover:text-primary transition-colors">{proj.name}</h4>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shadow-xs">
-                    {proj.healthScore}% health
+        {/* Code Quality Trend Chart (2 columns) */}
+        <div className="lg:col-span-2 p-5 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                  Code quality trend
+                </h3>
+                <div className="flex items-center gap-4 text-[11px] text-slate-400 mt-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-0.5 bg-teal-500 inline-block" />
+                    Quality score
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-0.5 bg-blue-500 inline-block" />
+                    Maintainability
                   </span>
                 </div>
-                <p className="text-[11px] text-muted-foreground line-clamp-1">{proj.description}</p>
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/50">
-                  <span>Open Issues: {proj.openIssuesCount}</span>
-                  <span>Test Coverage: {proj.testCoveragePercent}%</span>
-                </div>
               </div>
-            ))}
+              <span className="text-[11px] text-slate-400">Last 30 days</span>
+            </div>
+
+            <div className="h-56 mt-4 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" opacity={0.6} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0F172A', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '11px' }}
+                  />
+                  <Line type="monotone" dataKey="quality" stroke="#14B8A6" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="maintainability" stroke="#3B82F6" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="pt-2 text-[10px] text-slate-400 border-t border-slate-100 dark:border-slate-800/80">
+            Illustrative analytics · Aggregated daily · UTC
           </div>
         </div>
 
-        {/* Recent Analysis Audit Logs */}
-        <div className="lg:col-span-2 bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <Code2 className="w-4 h-4 text-primary" /> Recent Static & ML Analyses
-            </h3>
-            <button
-              onClick={() => navigate('/admin')}
-              className="text-xs text-primary hover:underline"
-            >
-              Full Audit Log &rarr;
-            </button>
+        {/* Your Priorities (1 column) */}
+        <div className="p-5 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                Your priorities
+              </h3>
+              <span className="text-xs text-slate-400">3 assigned</span>
+            </div>
+
+            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              <Link
+                to="/issues/TP-284"
+                className="py-3 flex items-start justify-between gap-2 block hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors -mx-2 px-2 rounded-lg"
+              >
+                <div>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">
+                    TP-284 · payments-service
+                  </span>
+                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white mt-0.5 leading-snug">
+                    Duplicate payment capture
+                  </h4>
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50">
+                  High
+                </span>
+              </Link>
+
+              <Link
+                to="/issues/TP-279"
+                className="py-3 flex items-start justify-between gap-2 block hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors -mx-2 px-2 rounded-lg"
+              >
+                <div>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">
+                    TP-279 · payments-service
+                  </span>
+                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white mt-0.5 leading-snug">
+                    Unbounded retry loop
+                  </h4>
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50">
+                  High
+                </span>
+              </Link>
+
+              <Link
+                to="/issues/TP-276"
+                className="py-3 flex items-start justify-between gap-2 block hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors -mx-2 px-2 rounded-lg"
+              >
+                <div>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">
+                    TP-276 · payments-service
+                  </span>
+                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white mt-0.5 leading-snug">
+                    N+1 query in order resolver
+                  </h4>
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50">
+                  Medium
+                </span>
+              </Link>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground font-semibold">
-                  <th className="pb-2">File</th>
-                  <th className="pb-2">Project</th>
-                  <th className="pb-2">Author</th>
-                  <th className="pb-2">Risk Score</th>
-                  <th className="pb-2">Execution</th>
-                  <th className="pb-2 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {mockAnalysisAuditRecords.map((rec) => (
-                  <tr key={rec.id} className="hover:bg-muted/40 transition-colors">
-                    <td className="py-2.5 font-mono font-medium text-foreground">
-                      {rec.filename}
-                    </td>
-                    <td className="py-2.5 text-muted-foreground">{rec.project}</td>
-                    <td className="py-2.5 text-foreground">{rec.developer}</td>
-                    <td className="py-2.5">
-                      <RiskPill score={rec.riskScore} />
-                    </td>
-                    <td className="py-2.5 font-mono text-muted-foreground">{rec.executionMs}ms</td>
-                    <td className="py-2.5 text-right">
-                      <button
-                        onClick={() => navigate('/editor')}
-                        className="text-xs text-primary hover:underline font-medium inline-flex items-center gap-1"
-                      >
-                        Inspect <ArrowRight className="w-3 h-3" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+            <Link
+              to="/issues"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center justify-between"
+            >
+              <span>View all assigned issues</span>
+              <span>→</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Bottom Section: Your Active Projects Table */}
+      <div className="p-5 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+            Your active projects
+          </h3>
+          <Link
+            to="/projects"
+            className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+          >
+            All projects →
+          </Link>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] font-mono text-slate-400 uppercase">
+                <th className="py-2.5 font-medium">PROJECT / REPOSITORY</th>
+                <th className="py-2.5 font-medium">QUALITY</th>
+                <th className="py-2.5 font-medium">RISK</th>
+                <th className="py-2.5 font-medium">LATEST ANALYSIS</th>
+                <th className="py-2.5 font-medium">NEXT MILESTONE</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tr className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                <td className="py-3 font-medium text-slate-900 dark:text-white">
+                  Payments reliability / payments-service
+                </td>
+                <td className="py-3 text-slate-700 dark:text-slate-300">
+                  82 / 100
+                </td>
+                <td className="py-3">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50">
+                    High
+                  </span>
+                </td>
+                <td className="py-3 text-slate-500">Today, 09:42</td>
+                <td className="py-3 text-slate-600 dark:text-slate-400">Release v2.8 · Oct 24</td>
+              </tr>
+
+              <tr className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                <td className="py-3 font-medium text-slate-900 dark:text-white">
+                  Customer experience / atlas-web
+                </td>
+                <td className="py-3 text-slate-700 dark:text-slate-300">
+                  91 / 100
+                </td>
+                <td className="py-3">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50">
+                    Low
+                  </span>
+                </td>
+                <td className="py-3 text-slate-500">Today, 09:30</td>
+                <td className="py-3 text-slate-600 dark:text-slate-400">Checkout redesign · Oct 28</td>
+              </tr>
+
+              <tr className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                <td className="py-3 font-medium text-slate-900 dark:text-white">
+                  Event pipeline / event-worker
+                </td>
+                <td className="py-3 text-slate-700 dark:text-slate-300">
+                  88 / 100
+                </td>
+                <td className="py-3">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50">
+                    Medium
+                  </span>
+                </td>
+                <td className="py-3 text-slate-500">Today, 08:55</td>
+                <td className="py-3 text-slate-600 dark:text-slate-400">Queue migration · Oct 30</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <span>Showing 3 records</span>
+          <div className="flex items-center gap-1">
+            <button className="px-2 py-1 rounded border border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800">
+              ← Prev
+            </button>
+            <button className="px-2.5 py-1 rounded bg-blue-600 text-white font-medium">
+              1
+            </button>
+            <button className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
+              2
+            </button>
+            <button className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
+              3
+            </button>
+            <button className="px-2 py-1 rounded border border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800">
+              Next →
+            </button>
           </div>
         </div>
       </div>
     </div>
   );
 };
-
