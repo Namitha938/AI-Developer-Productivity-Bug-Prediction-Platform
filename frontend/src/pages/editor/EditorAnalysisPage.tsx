@@ -1,355 +1,344 @@
-import React, { useState, useRef } from 'react';
-import { useAnalysisStore } from '../../stores/analysisStore';
-import { CodeEditor } from '../../components/editor/CodeEditor';
-import { LanguageSelect } from '../../components/editor/LanguageSelect';
-import { RiskGauge } from '../../components/analysis/RiskGauge';
-import { ComplexityCard } from '../../components/analysis/ComplexityCard';
-import { CodeSmellList } from '../../components/analysis/CodeSmellList';
-import { DuplicateCodeList } from '../../components/analysis/DuplicateCodeList';
-import { AiExplanation } from '../../components/analysis/AiExplanation';
-import { RefactorDiff } from '../../components/analysis/RefactorDiff';
-import { exportToSarif } from '../../utils/analyzer';
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import {
+  FileText,
+  Folder,
+  ChevronDown,
+  ChevronRight,
   Play,
-  Loader2,
-  Sparkles,
-  FileCode,
-  SlidersHorizontal,
-  Flame,
-  Copy,
-  Wand2,
-  Upload,
-  Download,
-  Share2,
-  Check,
-  FileSpreadsheet,
+  CheckCircle2,
+  AlertTriangle,
+  AlertOctagon,
+  Code2,
+  ExternalLink,
 } from 'lucide-react';
 
+const SAMPLE_PAYMENT_CODE = `// payments-service / src/services/payment.ts
+import { db, gateway } from "../clients";
+
+export async function capturePayment(
+  orderId: string, amount: number
+): Promise<PaymentResult> {
+  const order = await db.orders.find(orderId);
+  if (!order) throw new Error("Not found");
+
+  // Retry may capture the same payment twice
+  const result = await gateway.capture({
+    amount, currency: order.currency,
+    reference: order.id
+  });
+
+  await db.orders.update(orderId, {
+    status: "paid", transactionId: result.id
+  });
+  return { success: true, id: result.id };
+}`;
+
 export const EditorAnalysisPage: React.FC = () => {
-  const {
-    code,
-    language,
-    filename,
-    currentSnippetKey,
-    isAnalyzing,
-    result,
-    setCode,
-    setLanguage,
-    setFilename,
-    loadSnippet,
-    analyzeCode,
-    applyRefactor,
-  } = useAnalysisStore();
+  const navigate = useNavigate();
+  const [activeFile, setActiveFile] = useState('payment.ts');
+  const [findingsFilter, setFindingsFilter] = useState<'Bugs' | 'Smells' | 'Duplicates'>('Bugs');
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'smells' | 'duplicates' | 'refactor'>(
-    'overview'
-  );
-  const [copiedShare, setCopiedShare] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // File Upload Handler for real-life usage
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (content) {
-        setCode(content);
-        setFilename(file.name);
-
-        const ext = file.name.split('.').pop()?.toLowerCase();
-        if (ext === 'py') setLanguage('python');
-        else if (ext === 'ts' || ext === 'tsx') setLanguage('typescript');
-        else if (ext === 'js' || ext === 'jsx') setLanguage('javascript');
-        else if (ext === 'go') setLanguage('go');
-        else if (ext === 'rs') setLanguage('rust');
-        else if (ext === 'java') setLanguage('java');
-        else if (ext === 'sql') setLanguage('sql');
-
-        analyzeCode();
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  // Export SARIF 2.1.0 standard report
-  const handleExportSarif = () => {
-    if (!result) return;
-    const sarifData = exportToSarif(result);
-    const blob = new Blob([sarifData], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${filename || 'analysis'}.sarif`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Export JSON Report
-  const handleExportJson = () => {
-    if (!result) return;
-    const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${filename || 'analysis'}-audit.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Copy Markdown PR Summary
-  const handleCopySummary = () => {
-    if (!result) return;
-    const markdown = `## 🛡️ BugPulse AI Code Inspection Report
-- **Target File**: \`${result.filename}\` (${result.language})
-- **Overall Risk Score**: **${result.overallRiskScore}/100** (${result.riskCategory})
-- **Lines of Code**: ${result.complexity.linesOfCode} | **Cyclomatic Complexity**: ${result.complexity.cyclomaticComplexity}
-- **Defects Identified**: ${result.riskyLines.length}
-${result.riskyLines.map((r) => `- [${r.severity.toUpperCase()}] Line ${r.lineNumber}: ${r.bugType} — ${r.description}`).join('\n')}
-
-### Remediation Guidance
-${result.refactorSuggestion.summary}`;
-
-    navigator.clipboard.writeText(markdown);
-    setCopiedShare(true);
-    setTimeout(() => setCopiedShare(false), 2500);
-  };
+  const lines = SAMPLE_PAYMENT_CODE.split('\n');
 
   return (
-    <div className="h-[calc(100vh-6.5rem)] flex flex-col space-y-4">
-      {/* Top Action Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-card rounded-2xl border border-border p-3 shadow-xs">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <FileCode className="w-4 h-4 text-primary" />
-            <input
-              type="text"
-              value={filename}
-              onChange={(e) => setFilename(e.target.value)}
-              className="text-xs font-mono font-semibold bg-muted/50 border border-border px-2.5 py-1 rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-primary w-44"
-              placeholder="filename.ext"
-            />
+    <div className="space-y-4 font-sans h-full flex flex-col">
+      {/* 1. Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+            Understand every code path.
+          </h1>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1">
+            <span className="font-mono text-slate-600 dark:text-slate-300">payments-service / main</span>
+            <span>·</span>
+            <span>Analysis AN-1084</span>
+            <span>·</span>
+            <span>Completed today at 09:42</span>
+            <span className="hidden sm:inline text-slate-400">· Also supports Python, Java, Go & JavaScript</span>
           </div>
-
-          <LanguageSelect
-            language={language}
-            onLanguageChange={setLanguage}
-            selectedSnippetKey={currentSnippetKey}
-            onSnippetSelect={loadSnippet}
-          />
-
-          {/* Upload Real Project File */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            className="hidden"
-            accept=".py,.ts,.js,.tsx,.jsx,.go,.rs,.java,.cpp,.sql,.c,.json"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1 bg-muted hover:bg-muted/80 text-foreground border border-border rounded-lg text-xs font-semibold transition-all"
-            title="Upload any file from your codebase"
-          >
-            <Upload className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Upload File</span>
-          </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          {result && (
-            <div className="hidden lg:flex items-center gap-2">
-              <button
-                onClick={handleExportSarif}
-                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border rounded-lg transition-colors"
-                title="Export SARIF 2.1.0 OASIS standard format"
-              >
-                <Download className="w-3 h-3 text-primary" /> SARIF
-              </button>
-              <button
-                onClick={handleExportJson}
-                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border rounded-lg transition-colors"
-                title="Export JSON audit record"
-              >
-                <FileSpreadsheet className="w-3 h-3 text-emerald-500" /> JSON
-              </button>
-              <button
-                onClick={handleCopySummary}
-                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border rounded-lg transition-colors"
-                title="Copy markdown PR review comment"
-              >
-                {copiedShare ? (
-                  <>
-                    <Check className="w-3 h-3 text-emerald-500" /> Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3 h-3 text-indigo-500" /> Copy Report
-                  </>
-                )}
-              </button>
-            </div>
-          )}
+        <div className="flex items-center gap-2.5">
+          <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span>Analysis complete</span>
+          </span>
 
           <button
-            onClick={analyzeCode}
-            disabled={isAnalyzing}
-            className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-white shadow-md shadow-primary/20 transition-all disabled:opacity-50"
+            type="button"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs cursor-pointer transition-colors"
           >
-            {isAnalyzing ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Deep AST Heuristics...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-3.5 h-3.5" /> Analyze Code
-              </>
-            )}
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>Run analysis</span>
           </button>
         </div>
       </div>
 
-      {/* Main Split View: Monaco Editor (Left) & Results Panel (Right) */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0 overflow-hidden">
-        {/* Monaco Editor Container */}
-        <div className="lg:col-span-6 xl:col-span-7 flex flex-col h-full bg-card rounded-2xl border border-border overflow-hidden shadow-xs">
-          <div className="h-9 bg-muted/40 border-b border-border px-4 flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-mono flex items-center gap-1.5 font-medium">
-              <span className="w-2 h-2 rounded-full bg-primary" />
-              {filename}
+      {/* 2. Three-Pane Studio Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-[560px]">
+        {/* Pane 1: File Explorer (2 cols) */}
+        <div className="lg:col-span-2 p-3.5 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between text-xs font-sans">
+          <div className="space-y-3">
+            <span className="text-[10px] font-mono tracking-widest text-slate-400 font-semibold uppercase block">
+              EXPLORER
             </span>
-            <span className="text-[11px] font-mono">
-              {result?.riskyLines?.length || 0} risk annotations on margin • Type or paste any code
-            </span>
+
+            <div className="space-y-1 text-slate-600 dark:text-slate-400 font-mono text-[11px]">
+              {/* src */}
+              <div>
+                <div className="flex items-center gap-1 text-slate-800 dark:text-slate-200 font-medium py-0.5">
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                  <span>src</span>
+                </div>
+                {/* services */}
+                <div className="pl-3 space-y-0.5 mt-0.5">
+                  <div className="flex items-center gap-1 text-slate-800 dark:text-slate-200 font-medium py-0.5">
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                    <span>services</span>
+                  </div>
+                  <div className="pl-3 space-y-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setActiveFile('payment.ts')}
+                      className={`w-full flex items-center justify-between py-1 px-1.5 rounded text-left ${
+                        activeFile === 'payment.ts'
+                          ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span className="truncate">payment.ts</span>
+                      <span className="text-[10px] font-bold text-rose-500">3</span>
+                    </button>
+                    <div className="py-0.5 px-1.5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer">
+                      order.ts
+                    </div>
+                    <div className="py-0.5 px-1.5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer">
+                      refund.ts
+                    </div>
+                  </div>
+
+                  {/* resolvers */}
+                  <div className="flex items-center gap-1 text-slate-800 dark:text-slate-200 font-medium py-0.5 mt-1">
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                    <span>resolvers</span>
+                  </div>
+                  <div className="pl-3">
+                    <div className="flex items-center justify-between py-0.5 px-1.5 text-slate-500">
+                      <span>orders.ts</span>
+                      <span className="text-[10px] font-bold text-amber-500">1</span>
+                    </div>
+                  </div>
+
+                  {/* utils */}
+                  <div className="flex items-center gap-1 text-slate-800 dark:text-slate-200 font-medium py-0.5 mt-1">
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                    <span>utils</span>
+                  </div>
+                  <div className="pl-3">
+                    <div className="flex items-center justify-between py-0.5 px-1.5 text-slate-500">
+                      <span>retry.ts</span>
+                      <span className="text-[10px] font-bold text-rose-500">1</span>
+                    </div>
+                    <div className="py-0.5 px-1.5 text-slate-500">
+                      logger.ts
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* root files */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                <div className="px-1.5 text-slate-500">package.json</div>
+                <div className="px-1.5 text-slate-500">tsconfig.json</div>
+              </div>
+            </div>
           </div>
 
-          <div className="flex-1 min-h-0">
-            <CodeEditor
-              code={code}
-              language={language}
-              onChange={(val) => setCode(val || '')}
-              riskyLines={result?.riskyLines || []}
-            />
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[10px] font-mono text-slate-400 uppercase">
+            24 FILES ANALYZED
           </div>
         </div>
 
-        {/* Results Panel Container */}
-        <div className="lg:col-span-6 xl:col-span-5 flex flex-col h-full bg-card rounded-2xl border border-border overflow-hidden shadow-xs">
-          {/* Results Tab Bar */}
-          <div className="h-10 border-b border-border flex items-center px-2 bg-muted/30 gap-1 overflow-x-auto">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
-                activeTab === 'overview'
-                  ? 'bg-card text-foreground shadow-xs border border-border'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5" /> Overview
-            </button>
-            <button
-              onClick={() => setActiveTab('smells')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
-                activeTab === 'smells'
-                  ? 'bg-card text-foreground shadow-xs border border-border'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Flame className="w-3.5 h-3.5 text-amber-500" />
-              Smells ({result?.codeSmells?.length || 0})
-            </button>
-            <button
-              onClick={() => setActiveTab('duplicates')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
-                activeTab === 'duplicates'
-                  ? 'bg-card text-foreground shadow-xs border border-border'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Copy className="w-3.5 h-3.5 text-indigo-500" />
-              Duplicates ({result?.duplicateBlocks?.length || 0})
-            </button>
-            <button
-              onClick={() => setActiveTab('refactor')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
-                activeTab === 'refactor'
-                  ? 'bg-card text-foreground shadow-xs border border-border'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Wand2 className="w-3.5 h-3.5 text-emerald-500" /> Refactor
-            </button>
+        {/* Pane 2: Code Editor & Analysis Highlights (6 cols) */}
+        <div className="lg:col-span-6 p-4 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+          <div>
+            {/* Editor tab header */}
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 text-xs">
+              <span className="font-mono text-slate-800 dark:text-slate-200 font-medium">
+                payment.ts · TypeScript
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">UTF-8</span>
+            </div>
+
+            {/* Code Lines with TP-284 Highlight */}
+            <div className="py-3 font-mono text-xs overflow-x-auto leading-relaxed">
+              {lines.map((line, idx) => {
+                const lineNum = idx + 1;
+                const isHighlight = lineNum >= 10 && lineNum <= 15;
+                return (
+                  <div
+                    key={lineNum}
+                    className={`flex items-start px-2 py-0.5 rounded ${
+                      isHighlight
+                        ? 'bg-rose-500/10 border-l-2 border-rose-500 text-rose-950 dark:text-rose-200'
+                        : 'text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <span className="w-8 shrink-0 text-right pr-4 text-slate-400 select-none text-[11px]">
+                      {lineNum}
+                    </span>
+                    <pre className="font-mono text-xs whitespace-pre">{line}</pre>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Results Content Area */}
-          <div className="flex-1 p-4 overflow-y-auto space-y-4">
-            {isAnalyzing ? (
-              <div className="h-64 flex flex-col items-center justify-center gap-3 text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                <div>
-                  <h4 className="text-sm font-semibold text-foreground">
-                    DeepCode Neural Model Inspecting Syntax...
-                  </h4>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Synthesizing AST call graphs, variable dataflows, and CWE heuristic rules.
-                  </p>
+          {/* Editor Status & Metrics Bar */}
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <span className="font-mono text-[11px] text-slate-400">
+              main / a83f29c · Ln 11, Col 3
+            </span>
+
+            <div className="flex items-center gap-4 text-xs font-mono">
+              <div>
+                <span className="text-[10px] text-slate-400 block">Time</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">O(n)</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block">Space</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">O(1)</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block">Complexity</span>
+                <span className="font-semibold text-rose-500">14 · High</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Pane 3: AI Findings (4 cols) */}
+        <div className="lg:col-span-4 p-4 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-4">
+          <div className="space-y-4">
+            {/* Header + Risk Badge */}
+            <div className="flex items-start justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                  AI findings
+                </h3>
+                <p className="text-[10px] text-slate-400 font-mono mt-0.5 uppercase">
+                  MODEL v2.4 · 94% CONF.
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-3xl font-black text-rose-600 font-mono">86</span>
+                <span className="block text-[10px] text-slate-400 font-medium">Predicted bug risk</span>
+              </div>
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setFindingsFilter('Bugs')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                  findingsFilter === 'Bugs'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                Bugs 3
+              </button>
+              <button
+                type="button"
+                onClick={() => setFindingsFilter('Smells')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                  findingsFilter === 'Smells'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                Smells 1
+              </button>
+              <button
+                type="button"
+                onClick={() => setFindingsFilter('Duplicates')}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                  findingsFilter === 'Duplicates'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                Duplicates 1
+              </button>
+            </div>
+
+            {/* Finding Cards */}
+            <div className="space-y-2.5">
+              {/* Card 1: TP-284 */}
+              <div
+                onClick={() => navigate('/issues/TP-284')}
+                className="p-3 rounded-lg border border-rose-200/80 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/20 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer transition-all space-y-1"
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-mono text-slate-500 text-[11px]">TP-284 · L11–14</span>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                    High
+                  </span>
                 </div>
+                <h4 className="text-xs font-semibold text-slate-900 dark:text-white leading-snug">
+                  Duplicate payment capture
+                </h4>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Retries can charge the same order more than once.
+                </p>
               </div>
-            ) : !result ? (
-              <div className="p-12 text-center text-xs text-muted-foreground">
-                Click "Analyze Code" to generate predictive bug risk metrics.
+
+              {/* Card 2: TP-279 */}
+              <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-all space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-mono text-slate-500 text-[11px]">TP-279 · L28–34</span>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                    High
+                  </span>
+                </div>
+                <h4 className="text-xs font-semibold text-slate-900 dark:text-white leading-snug">
+                  Unbounded retry loop
+                </h4>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  No retry ceiling or exponential backoff.
+                </p>
               </div>
-            ) : (
-              <>
-                {activeTab === 'overview' && (
-                  <div className="space-y-4">
-                    {/* Gauge and Summary */}
-                    <div className="bg-card border border-border rounded-xl p-4 flex flex-col sm:flex-row items-center gap-4">
-                      <RiskGauge score={result.overallRiskScore} size={150} />
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                            Classification
-                          </span>
-                          <span className="text-xs font-semibold text-primary font-mono">
-                            {result.riskCategory}
-                          </span>
-                        </div>
-                        <p className="text-xs text-foreground/90 leading-relaxed font-medium">
-                          {result.summary}
-                        </p>
-                        <span className="text-[10px] text-muted-foreground font-mono block">
-                          Model Latency: {result.executionTimeMs}ms • DeepCode v4.2 • OASIS SARIF Compatible
-                        </span>
-                      </div>
-                    </div>
 
-                    {/* AI Explanation Card */}
-                    <AiExplanation explanation={result.aiExplanation} />
+              {/* Card 3: TP-272 */}
+              <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-all space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-mono text-slate-500 text-[11px]">TP-272 · L7</span>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400">
+                    Medium
+                  </span>
+                </div>
+                <h4 className="text-xs font-semibold text-slate-900 dark:text-white leading-snug">
+                  Missing amount validation
+                </h4>
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  Negative values reach the gateway.
+                </p>
+              </div>
+            </div>
 
-                    {/* Complexity Card */}
-                    <ComplexityCard complexity={result.complexity} />
-                  </div>
-                )}
+            <Link
+              to="/issues/TP-284"
+              className="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+            >
+              <span>Investigate TP-284</span>
+              <span>→</span>
+            </Link>
+          </div>
 
-                {activeTab === 'smells' && (
-                  <CodeSmellList smells={result.codeSmells} />
-                )}
-
-                {activeTab === 'duplicates' && (
-                  <DuplicateCodeList duplicates={result.duplicateBlocks} />
-                )}
-
-                {activeTab === 'refactor' && (
-                  <RefactorDiff
-                    suggestion={result.refactorSuggestion}
-                    onApply={applyRefactor}
-                  />
-                )}
-              </>
-            )}
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 text-center">
+            Quality 82/100 · Maintainability B · Duplication 4.2%
           </div>
         </div>
       </div>

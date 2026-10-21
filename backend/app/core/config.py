@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     FRONTEND_URL: str = "http://localhost:5173"
 
-    FIREBASE_SERVICE_ACCOUNT_PATH: str
+    FIREBASE_SERVICE_ACCOUNT_PATH: str = "secrets/firebase-service-account.json"
 
     # Cloudinary is used for file uploads, not database storage.
     CLOUDINARY_CLOUD_NAME: str = ""

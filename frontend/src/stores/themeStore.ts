@@ -6,43 +6,46 @@ interface ThemeState {
   setTheme: (dark: boolean) => void;
 }
 
-export const useThemeStore = create<ThemeState>((set) => {
-  const savedTheme = localStorage.getItem('codepulse_theme');
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const initialDark = savedTheme ? savedTheme === 'dark' : true; // default dark for developer tool aesthetic
-
-  // Sync with document element
-  if (initialDark) {
+const syncThemeToDOM = (dark: boolean) => {
+  if (dark) {
     document.documentElement.classList.add('dark');
+    document.documentElement.style.colorScheme = 'dark';
+    localStorage.setItem('tracepoint_theme', 'dark');
+    localStorage.setItem('theme', 'dark');
+    localStorage.setItem('codepulse_theme', 'dark');
   } else {
     document.documentElement.classList.remove('dark');
+    document.documentElement.style.colorScheme = 'light';
+    localStorage.setItem('tracepoint_theme', 'light');
+    localStorage.setItem('theme', 'light');
+    localStorage.setItem('codepulse_theme', 'light');
   }
+};
+
+export const useThemeStore = create<ThemeState>((set) => {
+  const savedTheme =
+    localStorage.getItem('tracepoint_theme') ||
+    localStorage.getItem('theme') ||
+    localStorage.getItem('codepulse_theme');
+
+  // Default to true (dark) if not set, or restore saved theme
+  const initialDark = savedTheme ? savedTheme === 'dark' : true;
+
+  // Sync initially with document element
+  syncThemeToDOM(initialDark);
 
   return {
     isDark: initialDark,
     toggleTheme: () => {
       set((state) => {
         const nextDark = !state.isDark;
-        if (nextDark) {
-          document.documentElement.classList.add('dark');
-          localStorage.setItem('codepulse_theme', 'dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-          localStorage.setItem('codepulse_theme', 'light');
-        }
+        syncThemeToDOM(nextDark);
         return { isDark: nextDark };
       });
     },
     setTheme: (dark: boolean) => {
-      if (dark) {
-        document.documentElement.classList.add('dark');
-        localStorage.setItem('codepulse_theme', 'dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-        localStorage.setItem('codepulse_theme', 'light');
-      }
+      syncThemeToDOM(dark);
       set({ isDark: dark });
     },
   };
 });
-

@@ -102,24 +102,69 @@ async function syncWithBackend(firebaseUser: FirebaseUser) {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => {
+  const useMock = typeof window !== 'undefined' && import.meta.env.VITE_USE_MOCK === 'true';
+  let initialUser: User | null = null;
+  let initialToken: string | null = null;
+  let initialRefresh: string | null = null;
 
-
+  if (useMock && typeof window !== 'undefined') {
+    const savedUserJson = localStorage.getItem('bugpulse_mock_current_user');
+    initialToken = localStorage.getItem('codepulse_access_token');
+    initialRefresh = localStorage.getItem('codepulse_refresh_token');
+    if (savedUserJson && initialToken) {
+      try {
+        initialUser = JSON.parse(savedUserJson);
+      } catch {
+        initialUser = null;
+      }
+    }
+  }
 
   return {
-    user: null,
-  accessToken: null,
-  refreshToken: null,
-  isAuthenticated: false,
-  isLoading: true,
-  error: null,
+    user: initialUser,
+    accessToken: initialToken,
+    refreshToken: initialRefresh,
+    isAuthenticated: !!initialUser,
+    isLoading: !initialUser,
+    error: null,
 
-  twoFactorRequired: false,
-  tempToken: null,
-  pendingUser: null,
+    twoFactorRequired: false,
+    tempToken: null,
+    pendingUser: null,
 
-  
-login: async (email: string, pass: string) => {
-  set({ isLoading: true, error: null });
+    login: async (email: string, pass: string) => {
+      set({ isLoading: true, error: null });
+      const useMockEnv = import.meta.env.VITE_USE_MOCK === 'true';
+
+      if (useMockEnv && (email.toLowerCase().includes('acme.dev') || email.toLowerCase().includes('codepulse.ai'))) {
+        try {
+          const res = await mockAuthApi.login({ email, password: pass });
+          if (res.requires2FA) {
+            set({
+              twoFactorRequired: true,
+              tempToken: res.tempToken || null,
+              pendingUser: res.user || null,
+              isLoading: false,
+            });
+            return { success: false, requires2FA: true };
+          }
+          set({
+            user: res.user,
+            accessToken: res.accessToken,
+            refreshToken: res.refreshToken,
+            isAuthenticated: true,
+            isLoading: false,
+            twoFactorRequired: false,
+            tempToken: null,
+            pendingUser: null,
+          });
+          return { success: true };
+        } catch (mockErr: unknown) {
+          const msg = mockErr instanceof Error ? mockErr.message : 'Login failed.';
+          set({ error: msg, isLoading: false });
+          return { success: false };
+        }
+      }
 
   try {
     const credential = await signInWithEmailAndPassword(

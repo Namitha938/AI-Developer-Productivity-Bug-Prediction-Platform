@@ -1,34 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { useThemeStore } from '../../stores/themeStore';
-import { NotificationDropdown } from '../notifications/NotificationDropdown';
 import {
   Search,
+  Bell,
   Sun,
   Moon,
   LogOut,
   User,
-  Settings,
   Shield,
-  Activity,
-  Github,
   Command,
-  CheckCircle,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
-interface NavbarProps {
-  onToggleSidebar?: () => void;
-}
-
-export const Navbar: React.FC<NavbarProps> = () => {
+export const Navbar: React.FC = () => {
   const { user, logout } = useAuthStore();
   const { isDark, toggleTheme } = useThemeStore();
+  const location = useLocation();
   const navigate = useNavigate();
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchFocused, setSearchFocused] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,6 +33,34 @@ export const Navbar: React.FC<NavbarProps> = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Compute breadcrumb path
+  const getBreadcrumb = () => {
+    const path = location.pathname;
+    if (path.startsWith('/dashboard')) return ['Workspace', 'Overview'];
+    if (path.startsWith('/profile') || path.startsWith('/settings')) return ['Workspace', 'Profile settings'];
+    if (path.startsWith('/security')) return ['Workspace', 'Account security'];
+    if (path.startsWith('/editor')) return ['Workspace', 'Code analysis'];
+    if (path.startsWith('/issues/')) return ['Workspace', 'Code analysis', 'Findings'];
+    if (path.startsWith('/issues')) return ['Workspace', 'Bug history'];
+    if (path.startsWith('/projects/board')) return ['Workspace', 'Projects & tasks'];
+    if (path.startsWith('/projects')) return ['Workspace', 'Pull requests'];
+    if (path.startsWith('/github')) return ['Workspace', 'Repositories'];
+    if (path.startsWith('/analytics')) return ['Workspace', 'Productivity analytics'];
+    if (path.startsWith('/notifications')) return ['Workspace', 'Notifications'];
+    if (path.startsWith('/admin')) return ['Workspace', 'Admin dashboard'];
+    return ['Workspace', 'Overview'];
+  };
+
+  const breadcrumbs = getBreadcrumb();
+
+  const displayName = user?.name || 'Maya Chen';
+  const initials = displayName
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase() || 'MC';
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -50,163 +70,119 @@ export const Navbar: React.FC<NavbarProps> = () => {
   };
 
   return (
-    <header className="h-16 border-b border-border bg-card/80 backdrop-blur sticky top-0 z-30 flex items-center justify-between px-4 sm:px-6">
-      {/* Search Bar */}
-      <div className="flex items-center gap-4 flex-1 max-w-lg">
+    <header className="h-14 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c1322] sticky top-0 z-30 flex items-center justify-between px-6 transition-colors">
+      {/* 1. Left Breadcrumb */}
+      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+        {breadcrumbs.map((crumb, idx) => (
+          <React.Fragment key={idx}>
+            {idx > 0 && <span className="text-slate-400 dark:text-slate-600">/</span>}
+            <span
+              className={
+                idx === breadcrumbs.length - 1
+                  ? 'font-medium text-slate-900 dark:text-slate-200'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }
+            >
+              {crumb}
+            </span>
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* 2. Middle Search Bar */}
+      <div className="flex-1 max-w-sm mx-8">
         <form onSubmit={handleSearchSubmit} className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
           <input
             type="text"
-            placeholder="Search code smells, issues, PRs, files... (Cmd+K)"
+            placeholder="Search anything... ⌘ K"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            className="w-full pl-9 pr-10 py-1.5 text-xs sm:text-sm bg-muted/60 border border-border rounded-lg placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:bg-background transition-all"
+            className="w-full pl-8 pr-8 py-1.5 text-xs bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-lg placeholder:text-slate-400 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
           />
-          <kbd className="hidden sm:inline-flex absolute right-2.5 top-1/2 -translate-y-1/2 items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground bg-card border border-border rounded shadow-xs">
-            <Command className="w-2.5 h-2.5" /> K
-          </kbd>
         </form>
       </div>
 
-      {/* Right controls */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* ML Status Pill */}
-        <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>DeepCode v4 Engine Active</span>
-        </div>
+      {/* 3. Right Status & Actions */}
+      <div className="flex items-center gap-3">
+        {/* DEMO WORKSPACE Tag Pill */}
+        <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-medium border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300">
+          DEMO WORKSPACE
+        </span>
+
+        {/* Notifications Icon with count */}
+        <Link
+          to="/notifications"
+          className="relative p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          title="Notifications"
+        >
+          <Bell className="w-4 h-4" />
+          <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-blue-600 text-white font-bold text-[9px] flex items-center justify-center">
+            4
+          </span>
+        </Link>
 
         {/* Theme Toggle */}
         <button
           onClick={toggleTheme}
-          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          title={isDark ? 'Switch to Light' : 'Switch to Dark'}
         >
-          {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5" />}
+          {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
         </button>
 
-        {/* Notifications Dropdown */}
-        <NotificationDropdown />
-
-        {/* User Profile */}
+        {/* User Initials Avatar & Dropdown */}
         <div className="relative" ref={userMenuRef}>
           <button
             onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="flex items-center gap-2 p-1 pl-2 rounded-lg hover:bg-muted transition-colors border border-transparent hover:border-border"
+            className="w-7 h-7 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center text-xs font-bold shadow-xs cursor-pointer transition-colors"
+            title={displayName}
           >
-            <div className="flex flex-col text-right hidden sm:block">
-              <span className="text-xs font-semibold text-foreground leading-none">
-                {user?.name || 'Developer'}
-              </span>
-              <span className="text-[10px] text-muted-foreground mt-0.5 capitalize">
-                {user?.role?.replace('_', ' ') || 'Engineer'}
-              </span>
-            </div>
-            {user?.avatarUrl ? (
-              <img
-                src={user.avatarUrl}
-                alt={user?.name || 'User'}
-                className="w-8 h-8 rounded-full border border-primary/30 object-cover"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-semibold text-xs flex items-center justify-center border border-primary/30 shadow-xs">
-                {(user?.name || 'Developer')
-                  .split(' ')
-                  .filter(Boolean)
-                  .slice(0, 2)
-                  .map((p) => p[0].toUpperCase())
-                  .join('')}
-              </div>
-            )}
+            {initials}
           </button>
 
           {userMenuOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-card text-card-foreground rounded-xl border border-border shadow-xl z-50 py-1 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-              <div className="px-4 py-3 border-b border-border bg-muted/20">
-                <p className="text-xs font-semibold text-foreground truncate">{user?.name}</p>
-                <p className="text-[11px] text-muted-foreground truncate">{user?.email}</p>
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  <span className="inline-block text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary uppercase font-bold">
-                    {user?.role}
-                  </span>
-                  {user?.twoFactorEnabled && (
-                    <span className="inline-block text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
-                      2FA On
-                    </span>
-                  )}
+            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl py-1 text-xs z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+                <div className="font-semibold text-slate-900 dark:text-white truncate">
+                  {displayName}
+                </div>
+                <div className="text-[10px] text-slate-500 truncate">
+                  {user?.email || 'maya@acme.dev'}
                 </div>
               </div>
 
-              <div className="py-1">
-                <button
-                  onClick={() => {
-                    setUserMenuOpen(false);
-                    navigate('/profile');
-                  }}
-                  className="w-full text-left px-4 py-2 text-xs flex items-center gap-2 text-foreground hover:bg-muted transition-colors"
-                >
-                  <User className="w-4 h-4 text-muted-foreground" />
-                  Your Profile
-                </button>
-                <button
-                  onClick={() => {
-                    setUserMenuOpen(false);
-                    navigate('/settings');
-                  }}
-                  className="w-full text-left px-4 py-2 text-xs flex items-center gap-2 text-foreground hover:bg-muted transition-colors"
-                >
-                  <Settings className="w-4 h-4 text-muted-foreground" />
-                  Settings & Security
-                </button>
-                <button
-                  onClick={() => {
-                    setUserMenuOpen(false);
-                    navigate('/dashboard');
-                  }}
-                  className="w-full text-left px-4 py-2 text-xs flex items-center gap-2 text-foreground hover:bg-muted transition-colors"
-                >
-                  <Activity className="w-4 h-4 text-muted-foreground" />
-                  Dashboard
-                </button>
-                <button
-                  onClick={() => {
-                    setUserMenuOpen(false);
-                    navigate('/github');
-                  }}
-                  className="w-full text-left px-4 py-2 text-xs flex items-center gap-2 text-foreground hover:bg-muted transition-colors"
-                >
-                  <Github className="w-4 h-4 text-muted-foreground" />
-                  GitHub Sync
-                </button>
-                {user?.role === 'admin' && (
-                  <button
-                    onClick={() => {
-                      setUserMenuOpen(false);
-                      navigate('/admin');
-                    }}
-                    className="w-full text-left px-4 py-2 text-xs flex items-center gap-2 text-foreground hover:bg-muted transition-colors"
-                  >
-                    <Shield className="w-4 h-4 text-muted-foreground" />
-                    Admin Panel
-                  </button>
-                )}
-              </div>
+              <Link
+                to="/profile"
+                onClick={() => setUserMenuOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Profile Settings</span>
+              </Link>
 
-              <div className="border-t border-border pt-1">
-                <button
-                  onClick={() => {
-                    setUserMenuOpen(false);
-                    logout();
-                    navigate('/login');
-                  }}
-                  className="w-full text-left px-4 py-2 text-xs flex items-center gap-2 text-rose-500 hover:bg-rose-500/10 transition-colors"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Sign Out
-                </button>
-              </div>
+              <Link
+                to="/security"
+                onClick={() => setUserMenuOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80"
+              >
+                <Shield className="w-3.5 h-3.5" />
+                <span>Account Security</span>
+              </Link>
+
+              <div className="border-t border-slate-100 dark:border-slate-800 my-1" />
+
+              <button
+                onClick={() => {
+                  setUserMenuOpen(false);
+                  logout();
+                  navigate('/login');
+                }}
+                className="flex items-center gap-2 w-full text-left px-3 py-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sign out</span>
+              </button>
             </div>
           )}
         </div>
@@ -214,4 +190,3 @@ export const Navbar: React.FC<NavbarProps> = () => {
     </header>
   );
 };
-
