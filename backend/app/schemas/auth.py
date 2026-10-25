@@ -12,3 +12,4 @@ class UserResponse(BaseModel):
     is_active: bool = True
     avatar_url: str = ""
     created_at: str | None = None
+    role: str = "user"

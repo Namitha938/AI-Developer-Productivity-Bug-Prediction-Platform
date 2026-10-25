@@ -1,100 +1,158 @@
+
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import { applyActionCode } from 'firebase/auth';
 import { AuthLayout } from '../../components/auth/AuthLayout';
-import { mockAuthApi } from '../../api/mock/mockAuthApi';
-import { Loader2, CheckCircle2, AlertCircle, ArrowRight, Mail } from 'lucide-react';
+import { auth } from '../../config/firebase';
+import {
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
+} from 'lucide-react';
 
 export const VerifyEmailPage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
+
+  // Firebase email verification links use "oobCode", not "token".
+  const oobCode = searchParams.get('oobCode');
 
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!token) {
-      setLoading(false);
-      setError('No verification token provided. Please check the link in your email.');
-      return;
-    }
+    let cancelled = false;
 
-    mockAuthApi
-      .verifyEmail(token)
-      .then(() => {
-        setSuccess(true);
+    const verifyEmail = async () => {
+      if (!oobCode) {
+        setError(
+          'The verification link is missing its security code. Please open the verification link from your email.'
+        );
         setLoading(false);
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : 'The verification link has expired or is invalid.');
-        setLoading(false);
-      });
-  }, [token]);
+        return;
+      }
+
+      try {
+        await applyActionCode(auth, oobCode);
+
+        if (!cancelled) {
+          setSuccess(true);
+        }
+      } catch (err: unknown) {
+        if (cancelled) return;
+
+        const firebaseError = err as { code?: string };
+
+        if (
+          firebaseError.code === 'auth/expired-action-code' ||
+          firebaseError.code === 'auth/invalid-action-code'
+        ) {
+          setError(
+            'This verification link has expired or has already been used. Please request a new verification email.'
+          );
+        } else if (
+          firebaseError.code === 'auth/invalid-continue-uri' ||
+          firebaseError.code === 'auth/unauthorized-continue-uri'
+        ) {
+          setError(
+            'The verification link configuration is invalid. Please contact the application administrator.'
+          );
+        } else {
+          setError(
+            'We could not verify your email right now. Please try again using the link in your verification email.'
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void verifyEmail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [oobCode]);
 
   return (
     <AuthLayout
       title="Email Verification"
       subtitle="Confirming your developer account credentials"
     >
-      <div className="space-y-6 text-center py-2">
+      <div className="space-y-6 py-2 text-center">
         {loading && (
           <div className="space-y-3">
-            <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-900/60 text-indigo-600 dark:text-indigo-400 mx-auto flex items-center justify-center">
-              <Loader2 className="w-7 h-7 animate-spin" />
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-900/60 dark:bg-indigo-950/60 dark:text-indigo-400">
+              <Loader2 className="h-7 w-7 animate-spin" />
             </div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
               Verifying your email...
             </h3>
             <p className="text-xs text-slate-500">
-              Please wait while we activate your security credentials.
+              Please wait while Firebase confirms your email address.
             </p>
           </div>
         )}
 
         {!loading && success && (
-          <div className="space-y-4 animate-in fade-in duration-300">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900/60 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center">
-              <CheckCircle2 className="w-7 h-7" />
+          <div className="animate-in space-y-4 fade-in duration-300">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900/60 dark:bg-emerald-950/60 dark:text-emerald-400">
+              <CheckCircle2 className="h-7 w-7" />
             </div>
+
             <div className="space-y-1">
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
                 Email Verified Successfully!
               </h3>
-              <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                Your workspace is active. You can now access code inspections and risk analytics.
+              <p className="mx-auto max-w-xs text-xs text-slate-500">
+                Firebase has verified your email address. You can now sign in
+                and access your workspace.
               </p>
             </div>
+
             <div className="pt-2">
               <Link
-                to="/dashboard"
-                className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
+                to="/login"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-6 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700"
               >
-                <span>Go to dashboard</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <span>Continue to sign in</span>
+                <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
           </div>
         )}
 
         {!loading && error && (
-          <div className="space-y-4 animate-in fade-in duration-300">
-            <div className="w-14 h-14 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 mx-auto flex items-center justify-center">
-              <AlertCircle className="w-7 h-7" />
+          <div className="animate-in space-y-4 fade-in duration-300">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-red-200 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
+              <AlertCircle className="h-7 w-7" />
             </div>
+
             <div className="space-y-1">
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Verification Link Expired
+                Email Verification Failed
               </h3>
-              <p className="text-xs text-slate-500 max-w-xs mx-auto">
+              <p className="mx-auto max-w-xs text-xs text-slate-500">
                 {error}
               </p>
             </div>
-            <div className="pt-2">
+
+            <div className="flex flex-wrap justify-center gap-3 pt-2">
               <Link
                 to="/login"
-                className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-sm"
+                className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
-                <span>Back to login</span>
+                Back to login
+              </Link>
+
+              <Link
+                to="/forgot-password"
+                className="inline-flex items-center rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Account help
               </Link>
             </div>
           </div>

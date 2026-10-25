@@ -493,7 +493,7 @@ export const LandingPage: React.FC = () => {
                   onClick={() => navigate('/dashboard')}
                   className="tp-btn-primary inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-md shadow-blue-600/30 cursor-pointer"
                 >
-                  <span>Explore live demo</span>
+                  <span>Explore</span>
                   <ArrowRight className="w-4 h-4 tp-arrow-icon" />
                 </button>
 

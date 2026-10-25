@@ -48,3 +48,6 @@ __pycache__/
 .pytest_cache/
 
 
+
+# Large CodeT5 model files
+/bugpulse-ml-service/models/codet5-finetuned/

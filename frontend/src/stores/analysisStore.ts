@@ -1,80 +1,226 @@
+
 import { create } from 'zustand';
-import { AnalysisResult } from '../types';
-import { sampleCodeSnippets, mockDefaultAnalysisResult } from '../api/mockData';
-import { analyzeArbitraryCode } from '../utils/analyzer';
+import axios from 'axios';
+import type { AnalysisResult } from '../types';
+import {
+  analyzeCodeApi,
+  getAnalysisHistoryApi,
+} from '../api/analysisApi';
+
+const STARTER_CODE = `def divide(a, b):
+    return a / b
+
+print(divide(10, 0))`;
 
 interface AnalysisState {
-  currentSnippetKey: string;
   code: string;
   language: string;
   filename: string;
+
   isAnalyzing: boolean;
+  error: string | null;
   result: AnalysisResult | null;
+
   history: AnalysisResult[];
+  isLoadingHistory: boolean;
+  historyError: string | null;
+  historyHasMore: boolean;
+  historyCursor: string | null;
 
   setCode: (code: string) => void;
-  setLanguage: (lang: string) => void;
-  setFilename: (name: string) => void;
-  loadSnippet: (key: string) => void;
+  setLanguage: (language: string) => void;
+  setFilename: (filename: string) => void;
+
   analyzeCode: () => Promise<void>;
+  loadHistory: () => Promise<void>;
+  loadMoreHistory: () => Promise<void>;
+
   applyRefactor: () => void;
+  clearResult: () => void;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (axios.isAxiosError<{ detail?: string }>(error)) {
+    const detail = error.response?.data?.detail;
+
+    if (detail) return detail;
+
+    if (!error.response) {
+      return 'Cannot reach the BugPulse AI backend. Check that the server is running.';
+    }
+
+    if (error.response.status === 401) {
+      return 'Your session has expired. Please sign in again.';
+    }
+
+    return `Request failed (HTTP ${error.response.status}). Please try again.`;
+  }
+
+  return error instanceof Error
+    ? error.message
+    : 'An unexpected error occurred.';
+}
+
+function mergeUniqueAnalyses(
+  existing: AnalysisResult[],
+  incoming: AnalysisResult[],
+): AnalysisResult[] {
+  const seen = new Set<string>();
+
+  return [...existing, ...incoming].filter((item) => {
+    if (seen.has(item.id)) return false;
+
+    seen.add(item.id);
+    return true;
+  });
 }
 
 export const useAnalysisStore = create<AnalysisState>((set, get) => ({
-  currentSnippetKey: 'python_memory_leak',
-  code: sampleCodeSnippets.python_memory_leak.code,
-  language: sampleCodeSnippets.python_memory_leak.language,
-  filename: sampleCodeSnippets.python_memory_leak.filename,
+  code: STARTER_CODE,
+  language: 'python',
+  filename: 'division_test.py',
+
   isAnalyzing: false,
-  result: mockDefaultAnalysisResult,
-  history: [mockDefaultAnalysisResult],
+  error: null,
+  result: null,
 
-  setCode: (code: string) => set({ code }),
-  setLanguage: (language: string) => set({ language }),
-  setFilename: (filename: string) => set({ filename }),
+  history: [],
+  isLoadingHistory: false,
+  historyError: null,
+  historyHasMore: false,
+  historyCursor: null,
 
-  loadSnippet: (key: string) => {
-    const item = sampleCodeSnippets[key];
-    if (item) {
-      set({
-        currentSnippetKey: key,
-        code: item.code,
-        language: item.language,
-        filename: item.filename,
+  setCode: (code) => set({ code }),
+  setLanguage: (language) => set({ language }),
+  setFilename: (filename) => set({ filename }),
+
+  analyzeCode: async () => {
+    const { code, language, filename, isAnalyzing } = get();
+
+    if (isAnalyzing) return;
+
+    if (!code.trim()) {
+      set({ error: 'Enter some code before running the analysis.' });
+      return;
+    }
+
+    if (!filename.trim()) {
+      set({ error: 'Enter a filename for this code.' });
+      return;
+    }
+
+    set({ isAnalyzing: true, error: null });
+
+    try {
+      const result = await analyzeCodeApi({
+        code,
+        language,
+        filename: filename.trim(),
       });
-      // Automatically trigger analysis for standard snippets
-      get().analyzeCode();
+
+      set((state) => ({
+        result,
+        history: mergeUniqueAnalyses(
+          [result],
+          state.history,
+        ),
+        isAnalyzing: false,
+        error: null,
+      }));
+    } catch (error: unknown) {
+      set({
+        isAnalyzing: false,
+        error: getErrorMessage(error),
+      });
     }
   },
 
-  analyzeCode: async () => {
-    set({ isAnalyzing: true });
+  loadHistory: async () => {
+    if (get().isLoadingHistory) return;
 
-    // Realistic latency simulating AST parsing and ML inference
-    await new Promise((r) => setTimeout(r, 650));
+    set({
+      isLoadingHistory: true,
+      historyError: null,
+    });
 
-    const currentCode = get().code;
-    const currentLang = get().language;
-    const currentFilename = get().filename;
+    try {
+      const response = await getAnalysisHistoryApi(20);
 
-    // Run dynamic analyzer on whatever code is currently in the editor
-    const generatedResult = analyzeArbitraryCode(currentCode, currentFilename, currentLang);
+      set({
+        history: response.items,
+        historyCursor: response.nextCursor,
+        historyHasMore: response.hasMore,
+        isLoadingHistory: false,
+        historyError: null,
+      });
+    } catch (error: unknown) {
+      set({
+        isLoadingHistory: false,
+        historyError: getErrorMessage(error),
+      });
+    }
+  },
 
-    set((state) => ({
-      isAnalyzing: false,
-      result: generatedResult,
-      history: [generatedResult, ...state.history.slice(0, 9)],
-    }));
+  loadMoreHistory: async () => {
+    const {
+      isLoadingHistory,
+      historyHasMore,
+      historyCursor,
+    } = get();
+
+    if (
+      isLoadingHistory ||
+      !historyHasMore ||
+      !historyCursor
+    ) {
+      return;
+    }
+
+    set({
+      isLoadingHistory: true,
+      historyError: null,
+    });
+
+    try {
+      const response = await getAnalysisHistoryApi(
+        20,
+        historyCursor,
+      );
+
+      set((state) => ({
+        history: mergeUniqueAnalyses(
+          state.history,
+          response.items,
+        ),
+        historyCursor: response.nextCursor,
+        historyHasMore: response.hasMore,
+        isLoadingHistory: false,
+        historyError: null,
+      }));
+    } catch (error: unknown) {
+      set({
+        isLoadingHistory: false,
+        historyError: getErrorMessage(error),
+      });
+    }
   },
 
   applyRefactor: () => {
-    const current = get().result;
-    if (current && current.refactorSuggestion) {
-      set({
-        code: current.refactorSuggestion.afterCode,
-      });
-      // Re-analyze the improved code
-      get().analyzeCode();
-    }
+    const result = get().result;
+    const afterCode = result?.refactorSuggestion?.afterCode;
+
+    if (!afterCode?.trim()) return;
+
+    set({
+      code: afterCode,
+      error: null,
+    });
+
+    void get().analyzeCode();
   },
+
+  clearResult: () => set({
+    result: null,
+    error: null,
+  }),
 }));

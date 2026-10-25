@@ -1,347 +1,594 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+
+import React, { useEffect, useState } from 'react';
 import {
-  FileText,
-  Folder,
-  ChevronDown,
-  ChevronRight,
   Play,
-  CheckCircle2,
+  Loader2,
   AlertTriangle,
-  AlertOctagon,
+  CheckCircle2,
   Code2,
-  ExternalLink,
+  FileText,
+  ShieldCheck,
+  WandSparkles,
+  History,
+  RefreshCw,
+  ChevronDown,
 } from 'lucide-react';
 
-const SAMPLE_PAYMENT_CODE = `// payments-service / src/services/payment.ts
-import { db, gateway } from "../clients";
+import { useAnalysisStore } from '../../stores/analysisStore';
+import type { Severity } from '../../types';
+import { CodeEditor } from '../../components/editor/CodeEditor';
+type FindingsFilter = 'Bugs' | 'Smells' | 'Duplicates';
 
-export async function capturePayment(
-  orderId: string, amount: number
-): Promise<PaymentResult> {
-  const order = await db.orders.find(orderId);
-  if (!order) throw new Error("Not found");
-
-  // Retry may capture the same payment twice
-  const result = await gateway.capture({
-    amount, currency: order.currency,
-    reference: order.id
-  });
-
-  await db.orders.update(orderId, {
-    status: "paid", transactionId: result.id
-  });
-  return { success: true, id: result.id };
-}`;
+const severityClasses: Record<Severity, string> = {
+  critical: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+  high: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+  medium: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+  low: 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
+};
 
 export const EditorAnalysisPage: React.FC = () => {
-  const navigate = useNavigate();
-  const [activeFile, setActiveFile] = useState('payment.ts');
-  const [findingsFilter, setFindingsFilter] = useState<'Bugs' | 'Smells' | 'Duplicates'>('Bugs');
+  const {
+    code,
+    language,
+    filename,
+    isAnalyzing,
+    error,
+    result,
+    history,
+    isLoadingHistory,
+    historyError,
+    historyHasMore,
+    setCode,
+    setLanguage,
+    setFilename,
+    analyzeCode,
+    loadHistory,
+    loadMoreHistory,
+    applyRefactor,
+  } = useAnalysisStore();
 
-  const lines = SAMPLE_PAYMENT_CODE.split('\n');
+  const [findingsFilter, setFindingsFilter] =
+    useState<FindingsFilter>('Bugs');
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
+  const lines = code.split('\n');
+
+  const riskLines = new Set(
+    result?.riskyLines.map((finding) => finding.lineNumber) ?? [],
+  );
+
+  const riskColor =
+    !result || result.overallRiskScore < 40
+      ? 'text-emerald-500'
+      : result.overallRiskScore < 70
+        ? 'text-amber-500'
+        : 'text-rose-500';
+
+  const openAnalysis = (item: (typeof history)[number]) => {
+    setCode(item.sourceCode);
+    setLanguage(item.language);
+    setFilename(item.filename);
+
+    useAnalysisStore.setState({
+      result: item,
+      error: null,
+    });
+
+    setFindingsFilter('Bugs');
+  };
 
   return (
-    <div className="space-y-4 font-sans h-full flex flex-col">
-      {/* 1. Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
+    <div className="flex h-full min-h-0 flex-col gap-4 font-sans">
+      <header className="flex shrink-0 flex-col justify-between gap-3 lg:flex-row lg:items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
             Understand every code path.
           </h1>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1">
-            <span className="font-mono text-slate-600 dark:text-slate-300">payments-service / main</span>
+
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <Code2 className="h-3.5 w-3.5" />
+            Real AI analysis
             <span>·</span>
-            <span>Analysis AN-1084</span>
-            <span>·</span>
-            <span>Completed today at 09:42</span>
-            <span className="hidden sm:inline text-slate-400">· Also supports Python, Java, Go & JavaScript</span>
-          </div>
+            Firebase-authenticated
+
+            {result && (
+              <>
+                <span>·</span>
+                <span className="font-mono">
+                  {result.id.slice(0, 12)}
+                </span>
+              </>
+            )}
+          </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span>Analysis complete</span>
-          </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {result && (
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-400">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Analysis complete
+            </span>
+          )}
 
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs cursor-pointer transition-colors"
+            onClick={() => void analyzeCode()}
+            disabled={isAnalyzing || !code.trim()}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <Play className="w-3.5 h-3.5 fill-current" />
-            <span>Run analysis</span>
+            {isAnalyzing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4 fill-current" />
+            )}
+            {isAnalyzing ? 'Analyzing…' : 'Run analysis'}
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* 2. Three-Pane Studio Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-[560px]">
-        {/* Pane 1: File Explorer (2 cols) */}
-        <div className="lg:col-span-2 p-3.5 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between text-xs font-sans">
-          <div className="space-y-3">
-            <span className="text-[10px] font-mono tracking-widest text-slate-400 font-semibold uppercase block">
-              EXPLORER
+      {error && (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-semibold">Analysis failed</p>
+            <p className="mt-1">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Persistent analysis history */}
+      <section className="shrink-0 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#0c1322]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <History className="h-4 w-4 text-blue-500" />
+
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+                Analysis history
+              </h2>
+              <p className="text-xs text-slate-500">
+                Previously saved analyses from your account
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void loadHistory()}
+            disabled={isLoadingHistory}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${
+                isLoadingHistory ? 'animate-spin' : ''
+              }`}
+            />
+            Refresh
+          </button>
+        </div>
+
+        {historyError && (
+          <div
+            role="alert"
+            className="mt-3 flex items-start justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
+          >
+            <span>{historyError}</span>
+
+            <button
+              type="button"
+              onClick={() => void loadHistory()}
+              className="shrink-0 font-semibold underline"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {!historyError && isLoadingHistory && history.length === 0 && (
+          <p className="mt-3 text-xs text-slate-500">
+            Loading saved analyses…
+          </p>
+        )}
+
+        {!isLoadingHistory &&
+          !historyError &&
+          history.length === 0 && (
+            <p className="mt-3 rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-slate-700">
+              No saved analyses yet. Run your first analysis to see it here.
+            </p>
+          )}
+
+        {history.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {history.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => openAnalysis(item)}
+                aria-current={result?.id === item.id ? 'true' : undefined}
+                className={`flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left transition-colors ${
+                  result?.id === item.id
+                    ? 'border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30'
+                    : 'border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900'
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">
+                    {item.filename}
+                  </p>
+
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    {item.language}
+                    {' · '}
+                    {new Date(item.timestamp).toLocaleString()}
+                  </p>
+
+                  <p className="mt-1 truncate text-[11px] text-slate-500">
+                    {item.summary}
+                  </p>
+                </div>
+
+                <div className="shrink-0 text-right">
+                  <p className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">
+                    {item.overallRiskScore}/100
+                  </p>
+
+                  <p className="text-[10px] text-slate-500">
+                    {item.riskCategory}
+                  </p>
+                </div>
+              </button>
+            ))}
+
+            {historyHasMore && (
+              <button
+                type="button"
+                onClick={() => void loadMoreHistory()}
+                disabled={isLoadingHistory}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:text-blue-400 dark:hover:bg-slate-900"
+              >
+                {isLoadingHistory ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                )}
+                {isLoadingHistory
+                  ? 'Loading…'
+                  : 'Load older analyses'}
+              </button>
+            )}
+          </div>
+        )}
+      </section>
+
+      <div className="grid min-h-[600px] flex-1 grid-cols-1 gap-4 lg:grid-cols-12">
+        {/* Code editor */}
+        <section className="flex min-w-0 flex-col gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-sm dark:border-slate-800 dark:bg-[#0c1322] lg:col-span-8">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-slate-800">
+            <FileText className="h-4 w-4 text-blue-500" />
+
+            <input
+              aria-label="Filename"
+              value={filename}
+              onChange={(event) => setFilename(event.target.value)}
+              maxLength={255}
+              className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 font-mono text-sm text-slate-800 outline-none focus:border-blue-500 dark:text-slate-100"
+              placeholder="filename.py"
+            />
+
+            <select
+              aria-label="Programming language"
+              value={language}
+              onChange={(event) => setLanguage(event.target.value)}
+              className="max-w-36 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+            >
+              <option value="python">Python</option>
+              <option value="javascript">JavaScript</option>
+              <option value="typescript">TypeScript</option>
+              <option value="java">Java</option>
+              <option value="go">Go</option>
+              <option value="c">C</option>
+              <option value="cpp">C++</option>
+              <option value="csharp">C#</option>
+              <option value="php">PHP</option>
+              <option value="rust">Rust</option>
+              <option value="ruby">Ruby</option>
+              <option value="sql">SQL</option>
+            </select>
+          </div>
+
+<div className="min-h-[520px] min-w-0 flex-1 overflow-hidden rounded-lg">
+  <CodeEditor
+    code={code}
+    language={language}
+    onChange={(value) => setCode(value ?? '')}
+    riskyLines={result?.riskyLines ?? []}
+  />
+</div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-slate-800">
+            <span>
+              {lines.length} lines · {code.length.toLocaleString()} characters
             </span>
 
-            <div className="space-y-1 text-slate-600 dark:text-slate-400 font-mono text-[11px]">
-              {/* src */}
+            <span>
+              {result
+                ? `Analyzed ${new Date(result.timestamp).toLocaleString()}`
+                : 'No analysis run yet'}
+            </span>
+          </div>
+        </section>
+
+        {/* AI findings */}
+        <section className="flex min-w-0 flex-col gap-4 rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#0c1322] lg:col-span-4">
+          <div className="border-b border-slate-100 pb-3 dark:border-slate-800">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="flex items-center gap-1 text-slate-800 dark:text-slate-200 font-medium py-0.5">
-                  <ChevronDown className="w-3 h-3 text-slate-400" />
-                  <span>src</span>
-                </div>
-                {/* services */}
-                <div className="pl-3 space-y-0.5 mt-0.5">
-                  <div className="flex items-center gap-1 text-slate-800 dark:text-slate-200 font-medium py-0.5">
-                    <ChevronDown className="w-3 h-3 text-slate-400" />
-                    <span>services</span>
-                  </div>
-                  <div className="pl-3 space-y-0.5">
-                    <button
-                      type="button"
-                      onClick={() => setActiveFile('payment.ts')}
-                      className={`w-full flex items-center justify-between py-1 px-1.5 rounded text-left ${
-                        activeFile === 'payment.ts'
-                          ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold'
-                          : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+                  AI findings
+                </h2>
+
+                <p className="mt-1 text-[10px] uppercase tracking-wider text-slate-400">
+                  {result
+                    ? `${result.provider ?? 'AI provider'} · ${result.model ?? 'Model not reported'}`
+                    : 'Awaiting real analysis'}
+                </p>
+              </div>
+
+              <div className="text-right">
+                <span className={`font-mono text-3xl font-black ${riskColor}`}>
+                  {result ? result.overallRiskScore : '—'}
+                </span>
+
+                <span className="block text-[10px] text-slate-400">
+                  Risk score / 100
+                </span>
+              </div>
+            </div>
+
+            {result && (
+              <>
+                <p className="mt-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  {result.riskCategory}
+                </p>
+
+                <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                  {result.summary}
+                </p>
+              </>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                ['Bugs', result?.riskyLines.length ?? 0],
+                ['Smells', result?.codeSmells.length ?? 0],
+                ['Duplicates', result?.duplicateBlocks.length ?? 0],
+              ] as const
+            ).map(([label, count]) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setFindingsFilter(label)}
+                className={`rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                  findingsFilter === label
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                }`}
+              >
+                {label} {result ? count : ''}
+              </button>
+            ))}
+          </div>
+
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+            {!result && (
+              <div className="rounded-lg border border-dashed border-slate-300 p-5 text-center dark:border-slate-700">
+                <ShieldCheck className="mx-auto h-7 w-7 text-slate-400" />
+
+                <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  No analysis yet
+                </p>
+
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  Run analysis to get findings from the backend AI service.
+                </p>
+              </div>
+            )}
+
+            {result &&
+              findingsFilter === 'Bugs' &&
+              result.riskyLines.map((finding, index) => (
+                <article
+                  key={`${finding.lineNumber}-${index}`}
+                  className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-800"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-xs font-semibold text-slate-900 dark:text-white">
+                      {finding.bugType}
+                    </h3>
+
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                        severityClasses[finding.severity]
                       }`}
                     >
-                      <span className="truncate">payment.ts</span>
-                      <span className="text-[10px] font-bold text-rose-500">3</span>
-                    </button>
-                    <div className="py-0.5 px-1.5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer">
-                      order.ts
-                    </div>
-                    <div className="py-0.5 px-1.5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer">
-                      refund.ts
-                    </div>
-                  </div>
-
-                  {/* resolvers */}
-                  <div className="flex items-center gap-1 text-slate-800 dark:text-slate-200 font-medium py-0.5 mt-1">
-                    <ChevronDown className="w-3 h-3 text-slate-400" />
-                    <span>resolvers</span>
-                  </div>
-                  <div className="pl-3">
-                    <div className="flex items-center justify-between py-0.5 px-1.5 text-slate-500">
-                      <span>orders.ts</span>
-                      <span className="text-[10px] font-bold text-amber-500">1</span>
-                    </div>
-                  </div>
-
-                  {/* utils */}
-                  <div className="flex items-center gap-1 text-slate-800 dark:text-slate-200 font-medium py-0.5 mt-1">
-                    <ChevronDown className="w-3 h-3 text-slate-400" />
-                    <span>utils</span>
-                  </div>
-                  <div className="pl-3">
-                    <div className="flex items-center justify-between py-0.5 px-1.5 text-slate-500">
-                      <span>retry.ts</span>
-                      <span className="text-[10px] font-bold text-rose-500">1</span>
-                    </div>
-                    <div className="py-0.5 px-1.5 text-slate-500">
-                      logger.ts
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* root files */}
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
-                <div className="px-1.5 text-slate-500">package.json</div>
-                <div className="px-1.5 text-slate-500">tsconfig.json</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[10px] font-mono text-slate-400 uppercase">
-            24 FILES ANALYZED
-          </div>
-        </div>
-
-        {/* Pane 2: Code Editor & Analysis Highlights (6 cols) */}
-        <div className="lg:col-span-6 p-4 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
-          <div>
-            {/* Editor tab header */}
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 text-xs">
-              <span className="font-mono text-slate-800 dark:text-slate-200 font-medium">
-                payment.ts · TypeScript
-              </span>
-              <span className="text-[10px] font-mono text-slate-400">UTF-8</span>
-            </div>
-
-            {/* Code Lines with TP-284 Highlight */}
-            <div className="py-3 font-mono text-xs overflow-x-auto leading-relaxed">
-              {lines.map((line, idx) => {
-                const lineNum = idx + 1;
-                const isHighlight = lineNum >= 10 && lineNum <= 15;
-                return (
-                  <div
-                    key={lineNum}
-                    className={`flex items-start px-2 py-0.5 rounded ${
-                      isHighlight
-                        ? 'bg-rose-500/10 border-l-2 border-rose-500 text-rose-950 dark:text-rose-200'
-                        : 'text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    <span className="w-8 shrink-0 text-right pr-4 text-slate-400 select-none text-[11px]">
-                      {lineNum}
+                      {finding.severity}
                     </span>
-                    <pre className="font-mono text-xs whitespace-pre">{line}</pre>
                   </div>
-                );
-              })}
-            </div>
-          </div>
 
-          {/* Editor Status & Metrics Bar */}
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <span className="font-mono text-[11px] text-slate-400">
-              main / a83f29c · Ln 11, Col 3
-            </span>
+                  <p className="text-[11px] leading-relaxed text-slate-500">
+                    Line {finding.lineNumber} · {finding.description}
+                  </p>
 
-            <div className="flex items-center gap-4 text-xs font-mono">
-              <div>
-                <span className="text-[10px] text-slate-400 block">Time</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">O(n)</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-400 block">Space</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">O(1)</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-400 block">Complexity</span>
-                <span className="font-semibold text-rose-500">14 · High</span>
-              </div>
-            </div>
-          </div>
-        </div>
+                  <p className="text-[10px] text-slate-400">
+                    Confidence: {Math.round(finding.confidence * 100)}%
+                  </p>
 
-        {/* Pane 3: AI Findings (4 cols) */}
-        <div className="lg:col-span-4 p-4 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-4">
-          <div className="space-y-4">
-            {/* Header + Risk Badge */}
-            <div className="flex items-start justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                  AI findings
-                </h3>
-                <p className="text-[10px] text-slate-400 font-mono mt-0.5 uppercase">
-                  MODEL v2.4 · 94% CONF.
+                  {finding.suggestedFixSnippet && (
+                    <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-slate-100 p-2 text-[10px] text-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                      {finding.suggestedFixSnippet}
+                    </pre>
+                  )}
+                </article>
+              ))}
+
+            {result &&
+              findingsFilter === 'Smells' &&
+              result.codeSmells.map((smell) => (
+                <article
+                  key={smell.id}
+                  className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-800"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-xs font-semibold text-slate-900 dark:text-white">
+                      {smell.type}
+                    </h3>
+
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                        severityClasses[smell.severity]
+                      }`}
+                    >
+                      {smell.severity}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500">
+                    Lines {smell.lineStart}–{smell.lineEnd}
+                  </p>
+
+                  <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                    {smell.message}
+                  </p>
+
+                  <p className="text-[11px] text-blue-600 dark:text-blue-400">
+                    {smell.recommendation}
+                  </p>
+                </article>
+              ))}
+
+            {result &&
+              findingsFilter === 'Duplicates' &&
+              result.duplicateBlocks.map((duplicate) => (
+                <article
+                  key={duplicate.id}
+                  className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-800"
+                >
+                  <h3 className="text-xs font-semibold text-slate-900 dark:text-white">
+                    Duplicate code detected
+                  </h3>
+
+                  <p className="text-[11px] text-slate-500">
+                    {duplicate.fileA} ({duplicate.linesA.join('–')}) ↔{' '}
+                    {duplicate.fileB} ({duplicate.linesB.join('–')})
+                  </p>
+
+                  <p className="text-xs text-slate-500">
+                    Similarity: {Math.round(duplicate.similarityScore * 100)}%
+                  </p>
+
+                  <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-slate-100 p-2 text-[10px] dark:bg-slate-900">
+                    {duplicate.duplicatedSnippet}
+                  </pre>
+                </article>
+              ))}
+
+            {result &&
+              (
+                (findingsFilter === 'Bugs' &&
+                  result.riskyLines.length === 0) ||
+                (findingsFilter === 'Smells' &&
+                  result.codeSmells.length === 0) ||
+                (findingsFilter === 'Duplicates' &&
+                  result.duplicateBlocks.length === 0)
+              ) && (
+                <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-slate-700">
+                  No {findingsFilter.toLowerCase()} were reported in this analysis.
                 </p>
-              </div>
-              <div className="text-right">
-                <span className="text-3xl font-black text-rose-600 font-mono">86</span>
-                <span className="block text-[10px] text-slate-400 font-medium">Predicted bug risk</span>
-              </div>
-            </div>
+              )}
+          </div>
 
-            {/* Filter Pills */}
-            <div className="flex items-center gap-1.5 text-xs">
-              <button
-                type="button"
-                onClick={() => setFindingsFilter('Bugs')}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-                  findingsFilter === 'Bugs'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                Bugs 3
-              </button>
-              <button
-                type="button"
-                onClick={() => setFindingsFilter('Smells')}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-                  findingsFilter === 'Smells'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                Smells 1
-              </button>
-              <button
-                type="button"
-                onClick={() => setFindingsFilter('Duplicates')}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
-                  findingsFilter === 'Duplicates'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                Duplicates 1
-              </button>
-            </div>
-
-            {/* Finding Cards */}
-            <div className="space-y-2.5">
-              {/* Card 1: TP-284 */}
-              <div
-                onClick={() => navigate('/issues/TP-284')}
-                className="p-3 rounded-lg border border-rose-200/80 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/20 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer transition-all space-y-1"
-              >
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-mono text-slate-500 text-[11px]">TP-284 · L11–14</span>
-                  <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-rose-500/15 text-rose-600 dark:text-rose-400">
-                    High
+          {result && (
+            <div className="space-y-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-400">
+                    Cyclomatic complexity
                   </span>
+
+                  <p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
+                    {result.complexity.cyclomaticComplexity}
+                  </p>
                 </div>
-                <h4 className="text-xs font-semibold text-slate-900 dark:text-white leading-snug">
-                  Duplicate payment capture
-                </h4>
-                <p className="text-[11px] text-slate-500 leading-snug">
-                  Retries can charge the same order more than once.
+
+                <div>
+                  <span className="text-slate-400">Maintainability</span>
+
+                  <p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
+                    {result.complexity.maintainabilityIndex}/100
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-slate-400">Time complexity</span>
+
+                  <p className="mt-1 font-mono font-semibold text-slate-800 dark:text-slate-200">
+                    {result.complexity.timeComplexity}
+                  </p>
+                </div>
+
+                <div>
+                  <span className="text-slate-400">Execution time</span>
+
+                  <p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
+                    {(result.executionTimeMs / 1000).toFixed(2)}s
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/70">
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                  <WandSparkles className="h-4 w-4 text-blue-500" />
+                  Refactoring suggestion
+                </div>
+
+                <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                  {result.refactorSuggestion.summary}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={applyRefactor}
+                  disabled={isAnalyzing}
+                  className="mt-3 w-full rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-600 transition-colors hover:bg-blue-50 disabled:opacity-50 dark:border-blue-900 dark:text-blue-400 dark:hover:bg-blue-950/40"
+                >
+                  Apply suggestion and re-analyze
+                </button>
+
+                <p className="mt-2 text-[10px] text-slate-400">
+                  Review generated changes before using them in production.
                 </p>
               </div>
 
-              {/* Card 2: TP-279 */}
-              <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-all space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-mono text-slate-500 text-[11px]">TP-279 · L28–34</span>
-                  <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-rose-500/15 text-rose-600 dark:text-rose-400">
-                    High
-                  </span>
-                </div>
-                <h4 className="text-xs font-semibold text-slate-900 dark:text-white leading-snug">
-                  Unbounded retry loop
-                </h4>
-                <p className="text-[11px] text-slate-500 leading-snug">
-                  No retry ceiling or exponential backoff.
-                </p>
-              </div>
-
-              {/* Card 3: TP-272 */}
-              <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-all space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-mono text-slate-500 text-[11px]">TP-272 · L7</span>
-                  <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400">
-                    Medium
-                  </span>
-                </div>
-                <h4 className="text-xs font-semibold text-slate-900 dark:text-white leading-snug">
-                  Missing amount validation
-                </h4>
-                <p className="text-[11px] text-slate-500 leading-snug">
-                  Negative values reach the gateway.
-                </p>
+              <div className="text-[10px] leading-relaxed text-slate-400">
+                Root cause: {result.aiExplanation.rootCause}
+                {result.aiExplanation.cweRef &&
+                  ` · ${result.aiExplanation.cweRef}`}
               </div>
             </div>
-
-            <Link
-              to="/issues/TP-284"
-              className="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
-            >
-              <span>Investigate TP-284</span>
-              <span>→</span>
-            </Link>
-          </div>
-
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 text-center">
-            Quality 82/100 · Maintainability B · Duplication 4.2%
-          </div>
-        </div>
+          )}
+        </section>
       </div>
     </div>
   );
 };
+
+export default EditorAnalysisPage;

@@ -111,6 +111,8 @@ export interface AnalysisResult {
   complexity: ComplexityMetrics;
   codeSmells: CodeSmell[];
   duplicateBlocks: DuplicateBlock[];
+  provider?: string;
+  model?: string;
   aiExplanation: {
     rootCause: string;
     consequences: string[];
@@ -147,17 +149,15 @@ export interface Issue {
   commentsCount: number;
 }
 
+
 export interface Project {
   id: string;
   name: string;
   description: string;
   repoUrl: string;
   defaultBranch: string;
-  healthScore: number; // 0 - 100
-  openIssuesCount: number;
-  resolvedIssuesCount: number;
-  testCoveragePercent: number;
-  lastScannedAt: string;
+  createdAt: string;
+  updatedAt: string;
   members: {
     id: string;
     name: string;
@@ -165,6 +165,13 @@ export interface Project {
     role: string;
     avatarUrl: string;
   }[];
+
+  // Only populated when backed by actual scan/issue data.
+  healthScore?: number;
+  openIssuesCount?: number;
+  resolvedIssuesCount?: number;
+  testCoveragePercent?: number;
+  lastScannedAt?: string;
 }
 
 export interface TaskItem {
@@ -173,11 +180,12 @@ export interface TaskItem {
   description: string;
   status: 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
   priority: 'low' | 'medium' | 'high' | 'urgent';
-  assignee: {
+  assignee?: {
     name: string;
     avatarUrl: string;
   };
-  dueDate: string;
+  assigneeUid?: string;
+  dueDate?: string | null;
   tags: string[];
   bugIssueId?: string;
 }

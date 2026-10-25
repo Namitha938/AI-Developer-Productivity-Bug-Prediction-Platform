@@ -1,7 +1,9 @@
-import React, { useRef, useEffect } from 'react';
+
+import React, { useRef, useEffect, useCallback } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
+import type { editor as MonacoEditor, Range as MonacoRange } from 'monaco-editor';
 import { useThemeStore } from '../../stores/themeStore';
-import { RiskyLine } from '../../types';
+import type { RiskyLine } from '../../types';
 import { Loader2 } from 'lucide-react';
 
 interface CodeEditorProps {
@@ -19,9 +21,61 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   riskyLines = [],
 }) => {
   const { isDark } = useThemeStore();
-  const editorRef = useRef<any>(null);
-  const monacoRef = useRef<any>(null);
+
+  const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
   const decorationsRef = useRef<string[]>([]);
+
+  const applyRiskDecorations = useCallback(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+
+    if (!editor || !monaco) return;
+
+    const lineCount = editor.getModel()?.getLineCount() ?? 0;
+
+    const newDecorations = riskyLines
+      .filter(
+        (item) =>
+          Number.isInteger(item.lineNumber) &&
+          item.lineNumber >= 1 &&
+          item.lineNumber <= lineCount,
+      )
+      .map((item) => {
+        const isCritical = item.severity === 'critical';
+        const isHigh = item.severity === 'high';
+
+        const lineClass = isCritical
+          ? 'risk-line-critical'
+          : isHigh
+            ? 'risk-line-high'
+            : 'risk-line-medium';
+
+        const glyphClass = isCritical
+          ? 'risk-glyph-critical'
+          : 'risk-glyph-high';
+
+        return {
+          range: new monaco.Range(item.lineNumber, 1, item.lineNumber, 1),
+          options: {
+            isWholeLine: true,
+            className: lineClass,
+            glyphMarginClassName: glyphClass,
+            glyphMarginHoverMessage: {
+              value: `**[${item.severity.toUpperCase()} RISK]** ${item.bugType}\n\n${item.description}\n\n*Confidence: ${(item.confidence * 100).toFixed(0)}%*`,
+            },
+            hoverMessage: {
+              value: `⚠️ **Bug Alert (${item.severity.toUpperCase()})**: ${item.description}`,
+            },
+          },
+        };
+      });
+
+    decorationsRef.current = editor.deltaDecorations(
+      decorationsRef.current,
+      newDecorations,
+    );
+  }, [riskyLines]);
 
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -29,50 +83,26 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     applyRiskDecorations();
   };
 
-  const applyRiskDecorations = () => {
-    if (!editorRef.current || !monacoRef.current) return;
-    const monaco = monacoRef.current;
-    const editor = editorRef.current;
-
-    const newDecorations = riskyLines.map((item) => {
-      const isCrit = item.severity === 'critical';
-      const isHigh = item.severity === 'high';
-
-      const lineClass = isCrit
-        ? 'risk-line-critical'
-        : isHigh
-        ? 'risk-line-high'
-        : 'risk-line-medium';
-
-      const glyphClass = isCrit
-        ? 'risk-glyph-critical'
-        : 'risk-glyph-high';
-
-      return {
-        range: new monaco.Range(item.lineNumber, 1, item.lineNumber, 1),
-        options: {
-          isWholeLine: true,
-          className: lineClass,
-          glyphMarginClassName: glyphClass,
-          glyphMarginHoverMessage: {
-            value: `**[${item.severity.toUpperCase()} RISK]** ${item.bugType}\n\n${item.description}\n\n*Confidence: ${(item.confidence * 100).toFixed(0)}%*`,
-          },
-          hoverMessage: {
-            value: `⚠️ **Bug Alert (${item.severity.toUpperCase()})**: ${item.description}`,
-          },
-        },
-      };
-    });
-
-    decorationsRef.current = editor.deltaDecorations(decorationsRef.current, newDecorations);
-  };
-
   useEffect(() => {
     applyRiskDecorations();
-  }, [riskyLines, code]);
+  }, [applyRiskDecorations, code]);
+
+useEffect(() => {
+  return () => {
+    const editor = editorRef.current;
+
+    if (editor) {
+      editor.deltaDecorations(decorationsRef.current, []);
+    }
+
+    decorationsRef.current = [];
+    editorRef.current = null;
+    monacoRef.current = null;
+  };
+}, []);
 
   return (
-    <div className="relative h-full w-full rounded-xl overflow-hidden border border-border bg-[#1e1e1e] shadow-sm">
+    <div className="relative h-full w-full overflow-hidden rounded-xl border border-border bg-[#1e1e1e] shadow-sm">
       <Editor
         height="100%"
         language={language}
@@ -81,8 +111,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         onChange={onChange}
         onMount={handleEditorDidMount}
         loading={
-          <div className="flex items-center justify-center h-full gap-2 text-xs text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin text-primary" /> Loading Monaco Editor...
+          <div className="flex h-full items-center justify-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            Loading Monaco Editor...
           </div>
         }
         options={{
@@ -105,3 +136,4 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   );
 };
 
+export default CodeEditor;

@@ -1,192 +1,308 @@
-import React, { useState, useMemo } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import {
-  Download,
-  Search,
-  X,
-  ChevronDown,
-  Filter,
-} from 'lucide-react';
 
-interface TraceIssue {
-  id: string;
-  title: string;
-  description: string;
-  severity: 'HIGH' | 'MED' | 'LOW';
-  status: 'OPEN' | 'RESOLVED';
-  risk: number;
-  repository: string;
-  assignee: {
-    name: string;
-    initials: string;
-    color: string;
-  };
-  detected: string;
-  resolved?: string;
-}
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Download, Search, X } from 'lucide-react';
+import { useIssueStore } from '../../stores/issueStore';
+import type { Issue, IssueStatus, Severity } from '../../types';
 
-const TRACEPOINT_ISSUES: TraceIssue[] = [
-  {
-    id: 'TP-284',
-    title: 'Duplicate payment capture',
-    description: 'Race condition in idempotency key validation',
-    severity: 'HIGH',
-    status: 'OPEN',
-    risk: 86,
-    repository: 'payments-service',
-    assignee: { name: 'Maya Chen', initials: 'MC', color: 'bg-blue-600' },
-    detected: 'Oct 18, 2026',
-  },
-  {
-    id: 'TP-279',
-    title: 'Unbounded retry loop',
-    description: 'Missing backoff ceiling in webhook dispatcher',
-    severity: 'HIGH',
-    status: 'OPEN',
-    risk: 12,
-    repository: 'webhook-service',
-    assignee: { name: 'Jake Liu', initials: 'JL', color: 'bg-indigo-600' },
-    detected: 'Oct 19, 2026',
-  },
-  {
-    id: 'TP-275',
-    title: 'N+1 query in user feed pagination',
-    description: 'Missing eager loading on activity associations',
-    severity: 'MED',
-    status: 'OPEN',
-    risk: 64,
-    repository: 'core-api',
-    assignee: { name: 'Aisha Rao', initials: 'AR', color: 'bg-teal-600' },
-    detected: 'Oct 16, 2026',
-  },
-  {
-    id: 'TP-271',
-    title: 'Stale cache on config reload',
-    description: 'TTL not flushed after feature flag update',
-    severity: 'MED',
-    status: 'OPEN',
-    risk: 54,
-    repository: 'config-service',
-    assignee: { name: 'Maya Chen', initials: 'MC', color: 'bg-blue-600' },
-    detected: 'Oct 14, 2026',
-  },
-  {
-    id: 'TP-268',
-    title: 'Timezone drift in cron scheduler',
-    description: 'DST boundary not accounted in UTC offset',
-    severity: 'LOW',
-    status: 'OPEN',
-    risk: 31,
-    repository: 'scheduler-worker',
-    assignee: { name: 'Tom Park', initials: 'TP', color: 'bg-amber-600' },
-    detected: 'Oct 12, 2026',
-  },
-  {
-    id: 'TP-263',
-    title: 'SQL injection in search param',
-    description: 'Unsanitised user input in filter clause',
-    severity: 'HIGH',
-    status: 'RESOLVED',
-    risk: 79,
-    repository: 'search-service',
-    assignee: { name: 'Jake Liu', initials: 'JL', color: 'bg-indigo-600' },
-    detected: 'Oct 08, 2026',
-    resolved: 'Oct 11, 2026',
-  },
-  {
-    id: 'TP-257',
-    title: 'Memory leak in WS connection pool',
-    description: 'Socket handles not freed on graceful close',
-    severity: 'MED',
-    status: 'RESOLVED',
-    risk: 58,
-    repository: 'realtime-gateway',
-    assignee: { name: 'Maya Chen', initials: 'MC', color: 'bg-blue-600' },
-    detected: 'Oct 04, 2026',
-    resolved: 'Oct 09, 2026',
-  },
-  {
-    id: 'TP-251',
-    title: 'Auth token not rotated after pwd reset',
-    description: 'Old JWT valid post-password-change',
-    severity: 'HIGH',
-    status: 'RESOLVED',
-    risk: 83,
-    repository: 'auth-service',
-    assignee: { name: 'Aisha Rao', initials: 'AR', color: 'bg-teal-600' },
-    detected: 'Sep 28, 2026',
-    resolved: 'Oct 01, 2026',
-  },
-  {
-    id: 'TP-244',
-    title: 'Incorrect decimal rounding in invoices',
-    description: 'Float precision loss in tax calculation',
-    severity: 'MED',
-    status: 'RESOLVED',
-    risk: 47,
-    repository: 'billing-engine',
-    assignee: { name: 'Tom Park', initials: 'TP', color: 'bg-amber-600' },
-    detected: 'Sep 22, 2026',
-    resolved: 'Sep 25, 2026',
-  },
-];
+const PAGE_SIZE = 10;
+
+const formatDate = (value?: string) => {
+  if (!value) return '—';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  });
+};
+
+const getInitials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join('') || '?';
+
+const getAvatarColor = (name: string) => {
+  const colors = [
+    'bg-blue-600',
+    'bg-indigo-600',
+    'bg-teal-600',
+    'bg-amber-600',
+    'bg-violet-600',
+    'bg-rose-600',
+  ];
+
+  const hash = [...name].reduce(
+    (total, character) => total + character.charCodeAt(0),
+    0
+  );
+
+  return colors[hash % colors.length];
+};
+
+const severityLabel = (severity: Severity) =>
+  severity === 'medium'
+    ? 'MED'
+    : severity.toUpperCase();
+
+const statusLabel = (status: IssueStatus) =>
+  status === 'in_progress'
+    ? 'IN PROGRESS'
+    : status.toUpperCase();
+
+const csvEscape = (value: unknown) =>
+  `"${String(value ?? '').replace(/"/g, '""')}"`;
 
 export const IssuesListPage: React.FC = () => {
   const navigate = useNavigate();
 
+  const {
+    issues,
+    isLoading,
+    error,
+    loadIssues,
+    setSelectedIssue,
+    clearError,
+  } = useIssueStore();
+
   const [search, setSearch] = useState('');
-  const [severityFilter, setSeverityFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [repoFilter, setRepoFilter] = useState('All repos');
-  const [assigneeFilter, setAssigneeFilter] = useState('All members');
+  const [severityFilter, setSeverityFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [repoFilter, setRepoFilter] = useState('all');
+  const [assigneeFilter, setAssigneeFilter] = useState('all');
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    void loadIssues();
+  }, [loadIssues]);
+
+  const repositories = useMemo(
+    () =>
+      [...new Set(issues.map((issue) => issue.project).filter(Boolean))]
+        .sort(),
+    [issues]
+  );
+
+  const assignees = useMemo(
+    () =>
+      [
+        ...new Set(
+          issues
+            .filter((issue) => issue.assignee?.id)
+            .map((issue) => issue.assignee.name)
+        ),
+      ].sort(),
+    [issues]
+  );
 
   const filtered = useMemo(() => {
-    return TRACEPOINT_ISSUES.filter((item) => {
-      if (severityFilter !== 'All' && item.severity !== severityFilter) return false;
-      if (statusFilter !== 'All' && item.status !== statusFilter) return false;
-      if (repoFilter !== 'All repos' && item.repository !== repoFilter) return false;
-      if (assigneeFilter !== 'All members' && item.assignee.name !== assigneeFilter) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        return (
-          item.id.toLowerCase().includes(q) ||
-          item.title.toLowerCase().includes(q) ||
-          item.description.toLowerCase().includes(q) ||
-          item.repository.toLowerCase().includes(q)
-        );
+    const query = search.trim().toLowerCase();
+
+    return issues.filter((issue) => {
+      if (
+        severityFilter !== 'all' &&
+        issue.severity !== severityFilter
+      ) {
+        return false;
       }
+
+      if (
+        statusFilter !== 'all' &&
+        issue.status !== statusFilter
+      ) {
+        return false;
+      }
+
+      if (
+        repoFilter !== 'all' &&
+        issue.project !== repoFilter
+      ) {
+        return false;
+      }
+
+      if (
+        assigneeFilter !== 'all' &&
+        issue.assignee?.name !== assigneeFilter
+      ) {
+        return false;
+      }
+
+      if (query) {
+        const searchable = [
+          issue.id,
+          issue.title,
+          issue.description,
+          issue.project,
+          issue.fileLocation,
+          issue.assignee?.name,
+          ...(issue.tags ?? []),
+        ]
+          .join(' ')
+          .toLowerCase();
+
+        if (!searchable.includes(query)) return false;
+      }
+
       return true;
     });
+  }, [
+    issues,
+    search,
+    severityFilter,
+    statusFilter,
+    repoFilter,
+    assigneeFilter,
+  ]);
+
+  useEffect(() => {
+    setPage(1);
   }, [search, severityFilter, statusFilter, repoFilter, assigneeFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+
+  const pageIssues = filtered.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  const openCount = issues.filter(
+    (issue) => issue.status === 'open'
+  ).length;
+
+  const resolvedIssues = issues.filter(
+    (issue) => issue.status === 'resolved'
+  );
+
+  const currentMonth = new Date();
+  const resolvedThisMonth = resolvedIssues.filter((issue) => {
+    const date = new Date(issue.updatedAt);
+
+    return (
+      !Number.isNaN(date.getTime()) &&
+      date.getMonth() === currentMonth.getMonth() &&
+      date.getFullYear() === currentMonth.getFullYear()
+    );
+  }).length;
+
+  const averageResolutionDays = useMemo(() => {
+    const durations = resolvedIssues
+      .map((issue) => {
+        const created = new Date(issue.createdAt).getTime();
+        const updated = new Date(issue.updatedAt).getTime();
+
+        if (
+          !Number.isFinite(created) ||
+          !Number.isFinite(updated) ||
+          updated < created
+        ) {
+          return null;
+        }
+
+        return (updated - created) / (1000 * 60 * 60 * 24);
+      })
+      .filter((value): value is number => value !== null);
+
+    if (!durations.length) return null;
+
+    return durations.reduce((sum, days) => sum + days, 0) /
+      durations.length;
+  }, [resolvedIssues]);
 
   const clearFilters = () => {
     setSearch('');
-    setSeverityFilter('All');
-    setStatusFilter('All');
-    setRepoFilter('All repos');
-    setAssigneeFilter('All members');
+    setSeverityFilter('all');
+    setStatusFilter('all');
+    setRepoFilter('all');
+    setAssigneeFilter('all');
+    setPage(1);
+  };
+
+  const exportCsv = () => {
+    const headers = [
+      'Issue ID',
+      'Title',
+      'Description',
+      'Severity',
+      'Status',
+      'Risk Score',
+      'Project',
+      'File Location',
+      'Line Range',
+      'Assignee',
+      'Detected',
+      'Last Updated',
+      'Tags',
+    ];
+
+    const rows = filtered.map((issue) => [
+      issue.id,
+      issue.title,
+      issue.description,
+      issue.severity,
+      issue.status,
+      issue.riskScore,
+      issue.project,
+      issue.fileLocation,
+      issue.lineRange,
+      issue.assignee?.name,
+      issue.createdAt,
+      issue.updatedAt,
+      issue.tags.join(', '),
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map(csvEscape).join(','))
+      .join('\r\n');
+
+    const blob = new Blob(['\uFEFF', csv], {
+      type: 'text/csv;charset=utf-8;',
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = 'bug-history.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   };
 
   return (
     <div className="space-y-6 font-sans">
-      {/* 1. Page Header */}
+      {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
             Bug History
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Tracepoint AI — Predictive issue tracking
+            Bug prediction and issue tracking
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <span className="text-xs text-slate-500 font-medium hidden sm:block">
-            Oct 21, 2026
+            {new Date().toLocaleDateString(undefined, {
+              month: 'short',
+              day: '2-digit',
+              year: 'numeric',
+            })}
           </span>
+
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs cursor-pointer transition-colors"
+            onClick={exportCsv}
+            disabled={!filtered.length}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-xs transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export CSV</span>
@@ -194,80 +310,78 @@ export const IssuesListPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Top Metric Cards (5 cards) */}
+      {/* Metrics from actual issue records */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
-        {/* Open Predictions */}
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 uppercase">
-            <span>OPEN PREDICTIONS</span>
+          <div className="text-[11px] font-mono text-slate-400 uppercase">
+            OPEN ISSUES
           </div>
-          <div className="flex items-baseline gap-1.5 mt-1.5">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white">12</span>
-            <span className="text-[10px] text-rose-500 font-semibold">↑ +3 wk</span>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">
+            {isLoading ? '—' : openCount}
           </div>
           <p className="text-[10px] text-slate-400 mt-1">
-            <span className="text-rose-500">• 2 High</span> · <span className="text-amber-500">4 Med</span> · <span className="text-slate-400">6 Low</span>
+            {issues.filter((issue) => issue.status === 'in_progress').length} in progress
           </p>
         </div>
 
-        {/* Avg Resolution */}
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="text-[11px] font-mono text-slate-400 uppercase">
             AVG RESOLUTION
           </div>
           <div className="flex items-baseline gap-1.5 mt-1.5">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white">4.2</span>
+            <span className="text-2xl font-bold text-slate-900 dark:text-white">
+              {averageResolutionDays === null
+                ? '—'
+                : averageResolutionDays.toFixed(1)}
+            </span>
             <span className="text-xs text-slate-500">days</span>
           </div>
-          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-            ↓ -1.1d vs last mo
+          <p className="text-[10px] text-slate-400 mt-1">
+            Based on issue timestamps
           </p>
         </div>
 
-        {/* Resolved (Oct) */}
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="text-[11px] font-mono text-slate-400 uppercase">
-            RESOLVED (OCT)
+            RESOLVED THIS MONTH
           </div>
           <div className="flex items-baseline gap-1.5 mt-1.5">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white">8</span>
+            <span className="text-2xl font-bold text-slate-900 dark:text-white">
+              {isLoading ? '—' : resolvedThisMonth}
+            </span>
             <span className="text-xs text-slate-500">issues</span>
           </div>
           <p className="text-[10px] text-slate-400 mt-1">
-            5 predicted · 3 detected
+            Based on last-updated dates
           </p>
         </div>
 
-        {/* AI Accuracy */}
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs">
           <div className="text-[11px] font-mono text-slate-400 uppercase">
             AI ACCURACY
           </div>
-          <div className="flex items-baseline gap-1 mt-1.5">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white">91</span>
-            <span className="text-sm font-bold text-slate-900 dark:text-white">%</span>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">
+            N/A
           </div>
           <p className="text-[10px] text-slate-400 mt-1">
-            vs 88% prior quarter
+            No evaluation metric available
           </p>
         </div>
 
-        {/* False Positives */}
         <div className="p-3.5 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs col-span-2 sm:col-span-1">
           <div className="text-[11px] font-mono text-slate-400 uppercase">
             FALSE POSITIVES
           </div>
-          <div className="flex items-baseline gap-1 mt-1.5">
-            <span className="text-2xl font-bold text-slate-900 dark:text-white">2</span>
-            <span className="text-xs text-slate-400 font-medium">/ 22 flagged</span>
+          <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1.5">
+            N/A
           </div>
           <p className="text-[10px] text-slate-400 mt-1">
-            9% false positive rate
+            Requires reviewed predictions
           </p>
         </div>
       </div>
 
-      {/* 3. Filter Bar */}
+      {/* Filters */}
       <div className="p-3 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
           <div className="relative flex-1 min-w-[180px]">
@@ -276,77 +390,86 @@ export const IssuesListPage: React.FC = () => {
               type="text"
               placeholder="Search issues..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
               className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
           <select
             value={severityFilter}
-            onChange={(e) => setSeverityFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 cursor-pointer"
+            onChange={(event) => setSeverityFilter(event.target.value)}
+            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
           >
-            <option value="All">Severity: All</option>
-            <option value="HIGH">Severity: High</option>
-            <option value="MED">Severity: Med</option>
-            <option value="LOW">Severity: Low</option>
+            <option value="all">Severity: All</option>
+            <option value="critical">Severity: Critical</option>
+            <option value="high">Severity: High</option>
+            <option value="medium">Severity: Medium</option>
+            <option value="low">Severity: Low</option>
           </select>
 
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 cursor-pointer"
+            onChange={(event) => setStatusFilter(event.target.value)}
+            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
           >
-            <option value="All">Status: All</option>
-            <option value="OPEN">Status: Open</option>
-            <option value="RESOLVED">Status: Resolved</option>
+            <option value="all">Status: All</option>
+            <option value="open">Status: Open</option>
+            <option value="in_progress">Status: In progress</option>
+            <option value="resolved">Status: Resolved</option>
           </select>
 
           <select
             value={repoFilter}
-            onChange={(e) => setRepoFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 cursor-pointer"
+            onChange={(event) => setRepoFilter(event.target.value)}
+            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
           >
-            <option value="All repos">Repository: All repos</option>
-            <option value="payments-service">payments-service</option>
-            <option value="webhook-service">webhook-service</option>
-            <option value="core-api">core-api</option>
-            <option value="config-service">config-service</option>
-            <option value="scheduler-worker">scheduler-worker</option>
-            <option value="search-service">search-service</option>
-            <option value="realtime-gateway">realtime-gateway</option>
-            <option value="auth-service">auth-service</option>
-            <option value="billing-engine">billing-engine</option>
+            <option value="all">Project: All</option>
+            {repositories.map((repository) => (
+              <option key={repository} value={repository}>
+                {repository}
+              </option>
+            ))}
           </select>
 
           <select
             value={assigneeFilter}
-            onChange={(e) => setAssigneeFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 cursor-pointer"
+            onChange={(event) => setAssigneeFilter(event.target.value)}
+            className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
           >
-            <option value="All members">Assignee: All members</option>
-            <option value="Maya Chen">Maya Chen</option>
-            <option value="Jake Liu">Jake Liu</option>
-            <option value="Aisha Rao">Aisha Rao</option>
-            <option value="Tom Park">Tom Park</option>
+            <option value="all">Assignee: All</option>
+            {assignees.map((assignee) => (
+              <option key={assignee} value={assignee}>
+                {assignee}
+              </option>
+            ))}
           </select>
-
-          <span className="text-slate-500 text-xs px-1">
-            Date range: Oct 2026
-          </span>
         </div>
 
         <button
           type="button"
           onClick={clearFilters}
-          className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 font-medium cursor-pointer"
+          className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 flex items-center gap-1 font-medium"
         >
           <X className="w-3.5 h-3.5" />
           <span>Clear filters</span>
         </button>
       </div>
 
-      {/* 4. Bug History Table */}
+      {/* Errors */}
+      {error && (
+        <div className="flex items-start justify-between gap-3 p-3 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 text-sm text-rose-700 dark:text-rose-300">
+          <span>{error}</span>
+          <button
+            type="button"
+            onClick={clearError}
+            aria-label="Dismiss error"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Issue table */}
       <div className="p-4 rounded-xl bg-white dark:bg-[#0c1322] border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -357,97 +480,161 @@ export const IssuesListPage: React.FC = () => {
                 <th className="py-2.5 font-medium">SEVERITY</th>
                 <th className="py-2.5 font-medium">STATUS</th>
                 <th className="py-2.5 font-medium">RISK</th>
-                <th className="py-2.5 font-medium">REPOSITORY</th>
+                <th className="py-2.5 font-medium">PROJECT</th>
                 <th className="py-2.5 font-medium">ASSIGNEE</th>
                 <th className="py-2.5 font-medium">DETECTED</th>
                 <th className="py-2.5 font-medium">RESOLVED</th>
               </tr>
             </thead>
+
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filtered.map((item) => (
+              {isLoading && issues.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="py-10 text-center text-slate-400">
+                    Loading issues from your account…
+                  </td>
+                </tr>
+              )}
+
+              {!isLoading && filtered.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="py-10 text-center text-slate-400">
+                    {issues.length === 0
+                      ? 'No issues found. Issues saved from your analyses will appear here.'
+                      : 'No issues match your current filters.'}
+                  </td>
+                </tr>
+              )}
+
+              {pageIssues.map((item) => (
                 <tr
                   key={item.id}
-                  onClick={() => navigate(`/issues/${item.id}`)}
+                  onClick={() => {
+                    setSelectedIssue(item);
+                    navigate(`/issues/${encodeURIComponent(item.id)}`);
+                  }}
                   className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
                 >
-                  <td className="py-3 font-mono font-medium text-blue-600 dark:text-blue-400">
+                  <td className="py-3 pr-3 font-mono font-medium text-blue-600 dark:text-blue-400">
                     {item.id}
                   </td>
-                  <td className="py-3 max-w-xs">
+
+                  <td className="py-3 pr-3 max-w-xs">
                     <span className="font-semibold text-slate-900 dark:text-white block">
                       {item.title}
                     </span>
                     <span className="text-[11px] text-slate-400 truncate block">
-                      {item.description}
+                      {item.description || item.fileLocation || 'No description provided'}
                     </span>
                   </td>
-                  <td className="py-3">
+
+                  <td className="py-3 pr-3">
                     <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                        item.severity === 'HIGH'
-                          ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200'
-                          : item.severity === 'MED'
-                          ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200'
-                          : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200'
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
+                        item.severity === 'critical' || item.severity === 'high'
+                          ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 border-rose-200 dark:border-rose-900'
+                          : item.severity === 'medium'
+                          ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 border-amber-200 dark:border-amber-900'
+                          : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900'
                       }`}
                     >
-                      • {item.severity}
+                      • {severityLabel(item.severity)}
                     </span>
                   </td>
-                  <td className="py-3">
+
+                  <td className="py-3 pr-3">
                     <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                        item.status === 'OPEN'
-                          ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200'
-                          : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200'
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
+                        item.status === 'resolved'
+                          ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900'
+                          : item.status === 'in_progress'
+                          ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 border-blue-200 dark:border-blue-900'
+                          : 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 border-amber-200 dark:border-amber-900'
                       }`}
                     >
-                      • {item.status}
+                      • {statusLabel(item.status)}
                     </span>
                   </td>
-                  <td className="py-3 font-mono font-semibold">
-                    <span className={item.risk > 70 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600 dark:text-slate-400'}>
-                      {item.risk}
+
+                  <td className="py-3 pr-3 font-mono font-semibold">
+                    <span
+                      className={
+                        item.riskScore > 70
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : 'text-slate-600 dark:text-slate-400'
+                      }
+                    >
+                      {item.riskScore}
                     </span>
                   </td>
-                  <td className="py-3 font-mono text-slate-600 dark:text-slate-400">
-                    {item.repository}
+
+                  <td className="py-3 pr-3 font-mono text-slate-600 dark:text-slate-400">
+                    {item.project || '—'}
                   </td>
-                  <td className="py-3">
+
+                  <td className="py-3 pr-3">
                     <div className="flex items-center gap-1.5">
-                      <div className={`w-5 h-5 rounded-full ${item.assignee.color} text-white flex items-center justify-center text-[9px] font-bold`}>
-                        {item.assignee.initials}
+                      <div
+                        className={`w-5 h-5 rounded-full ${
+                          getAvatarColor(item.assignee?.name ?? '')
+                        } text-white flex items-center justify-center text-[9px] font-bold`}
+                      >
+                        {getInitials(item.assignee?.name ?? 'Unassigned')}
                       </div>
                       <span className="text-slate-700 dark:text-slate-300">
-                        {item.assignee.name}
+                        {item.assignee?.name || 'Unassigned'}
                       </span>
                     </div>
                   </td>
-                  <td className="py-3 text-slate-400">{item.detected}</td>
-                  <td className="py-3 text-slate-400">{item.resolved || '—'}</td>
+
+                  <td className="py-3 pr-3 whitespace-nowrap text-slate-400">
+                    {formatDate(item.createdAt)}
+                  </td>
+
+                  <td className="py-3 whitespace-nowrap text-slate-400">
+                    {item.status === 'resolved'
+                      ? formatDate(item.updatedAt)
+                      : '—'}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination */}
-        <div className="flex items-center justify-between text-xs text-slate-400 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <span>Showing 9 of 20 issues · 12 open · 8 resolved</span>
+        {/* Functional pagination */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400 pt-3 border-t border-slate-100 dark:border-slate-800">
+          <span>
+            {filtered.length === 0
+              ? 'Showing 0 issues'
+              : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(
+                  currentPage * PAGE_SIZE,
+                  filtered.length
+                )} of ${filtered.length} issues`}
+          </span>
+
           <div className="flex items-center gap-1">
-            <button className="px-2 py-1 rounded border border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800">
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((value) => Math.max(1, value - 1))}
+              className="px-2 py-1 rounded border border-slate-200 dark:border-slate-800 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
               ← Prev
             </button>
-            <button className="px-2.5 py-1 rounded bg-blue-600 text-white font-medium">
-              1
-            </button>
-            <button className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
-              2
-            </button>
-            <button className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400">
-              3
-            </button>
-            <button className="px-2 py-1 rounded border border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800">
+
+            <span className="px-2.5 py-1 rounded bg-blue-600 text-white font-medium">
+              {currentPage} / {totalPages}
+            </span>
+
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() =>
+                setPage((value) => Math.min(totalPages, value + 1))
+              }
+              className="px-2 py-1 rounded border border-slate-200 dark:border-slate-800 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
               Next →
             </button>
           </div>

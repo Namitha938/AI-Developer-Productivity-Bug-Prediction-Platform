@@ -1,0 +1,21 @@
+﻿frontend/src/api/mock/mockAuthApi.ts:110:export const mockAuthApi = {
+frontend/src/components/profile/SessionsList.tsx:3:import { mockAuthApi } from '../../api/mock/mockAuthApi';
+frontend/src/components/profile/SessionsList.tsx:12:    mockAuthApi
+frontend/src/components/profile/SessionsList.tsx:24:      await mockAuthApi.revokeSession(id);
+frontend/src/pages/auth/ForgotPasswordPage.tsx:4:import { mockAuthApi } from '../../api/mock/mockAuthApi';
+frontend/src/pages/auth/ForgotPasswordPage.tsx:36:      await mockAuthApi.forgotPassword(email);
+frontend/src/pages/auth/ResetPasswordPage.tsx:5:import { mockAuthApi } from '../../api/mock/mockAuthApi';
+frontend/src/pages/auth/ResetPasswordPage.tsx:39:      await mockAuthApi.resetPassword({ token: 'mock-token', password });
+frontend/src/pages/auth/VerifyEmailPage.tsx:4:import { mockAuthApi } from '../../api/mock/mockAuthApi';
+frontend/src/pages/auth/VerifyEmailPage.tsx:22:    mockAuthApi
+frontend/src/stores/authStore.ts:4:import { mockAuthApi } from '../api/mock/mockAuthApi';
+frontend/src/stores/authStore.ts:141:          const res = await mockAuthApi.login({ email, password: pass });
+frontend/src/stores/authStore.ts:213:        const res = await mockAuthApi.verify2FALogin({ tempToken, code, isBackupCode });
+frontend/src/stores/authStore.ts:371:        const updated = await mockAuthApi.updateProfile(updates);
+frontend/src/stores/authStore.ts:384:        const res = await mockAuthApi.uploadAvatar(dataUrlOrFile);
+frontend/src/stores/authStore.ts:401:        await mockAuthApi.deleteAvatar();
+frontend/src/stores/authStore.ts:417:        const res = await mockAuthApi.enable2FA(code);
+frontend/src/stores/authStore.ts:430:        const res = await mockAuthApi.disable2FA({ password, code });
+frontend/src/stores/authStore.ts:443:        const res = await mockAuthApi.regenerateBackupCodes();
+frontend/src/stores/authStore.ts:462:        const updated = await mockAuthApi.toggleProvider(provider, connect);
+frontend/src/stores/authStore.ts:474:        await mockAuthApi.deleteAccount(confirmEmail);

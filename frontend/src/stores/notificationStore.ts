@@ -1,107 +1,213 @@
+
 import { create } from 'zustand';
-import { NotificationItem } from '../types';
-import { mockNotifications } from '../api/mockData';
+import { apiClient } from '../api/client';
+import type { NotificationItem } from '../types';
+
+interface NotificationApiItem {
+  id: string;
+  title: string;
+  message: string;
+  type: NotificationItem['type'];
+  timestamp: string;
+  read: boolean;
+  link_url?: string | null;
+  linkUrl?: string;
+}
+
+interface NotificationApiResponse {
+  notifications: NotificationApiItem[];
+  count: number;
+  unread_count: number;
+  limit: number;
+  offset: number;
+}
+
+type NewNotification = Omit<
+  NotificationItem,
+  'id' | 'timestamp' | 'read'
+>;
 
 interface NotificationState {
   notifications: NotificationItem[];
   unreadCount: number;
-  isSimulatingWs: boolean;
+  isLoading: boolean;
+  error: string | null;
 
-  markAsRead: (id: string) => void;
-  markAllAsRead: () => void;
-  deleteNotification: (id: string) => void;
-  addNotification: (item: Omit<NotificationItem, 'id' | 'timestamp' | 'read'>) => void;
+  fetchNotifications: () => Promise<void>;
+  markAsRead: (id: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
+  deleteNotification: (id: string) => Promise<void>;
+  addNotification: (item: NewNotification) => Promise<void>;
   startSimulation: () => void;
 }
 
-const randomLiveAlerts = [
-  {
-    title: 'High Risk Branch Push: fix/cache-eviction',
-    message: 'Sarah pushed 3 commits to core-payment-gateway. 2 high complexity functions identified.',
-    type: 'critical_bug' as const,
-    linkUrl: '/github'
-  },
-  {
-    title: 'Model Retraining Checkpoint',
-    message: 'DeepCode-BugPredictor-v4 validation loss decreased to 0.041. Test F1 reached 95.1%.',
-    type: 'system' as const,
-    linkUrl: '/admin'
-  },
-  {
-    title: 'New Bug Assignment: ISSUE-1048',
-    message: 'Marcus Chen assigned "Unchecked Type Coercion in JWT claim parser" to your queue.',
-    type: 'issue_assigned' as const,
-    linkUrl: '/issues'
-  },
-  {
-    title: 'Automated PR Review Finished',
-    message: 'PR #110 "refactor: simplify token cache" passed all 18 security heuristics.',
-    type: 'pr_reviewed' as const,
-    linkUrl: '/github'
+const toNotificationItem = (
+  item: NotificationApiItem,
+): NotificationItem => ({
+  id: item.id,
+  title: item.title,
+  message: item.message,
+  type: item.type,
+  timestamp: item.timestamp,
+  read: item.read,
+  linkUrl: item.linkUrl ?? item.link_url ?? undefined,
+});
+
+const getErrorMessage = (error: unknown): string => {
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const response = (
+      error as {
+        response?: { data?: { detail?: string } };
+      }
+    ).response;
+
+    if (response?.data?.detail) {
+      return response.data.detail;
+    }
   }
-];
+
+  return 'Unable to complete the notification request. Please try again.';
+};
+
+const syncUnreadCount = (notifications: NotificationItem[]) =>
+  notifications.filter((item) => !item.read).length;
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
-  notifications: mockNotifications,
-  unreadCount: mockNotifications.filter((n) => !n.read).length,
-  isSimulatingWs: false,
+  notifications: [],
+  unreadCount: 0,
+  isLoading: false,
+  error: null,
 
-  markAsRead: (id: string) => {
-    set((state) => {
-      const updated = state.notifications.map((n) =>
-        n.id === id ? { ...n, read: true } : n
+  fetchNotifications: async () => {
+    set({ isLoading: true, error: null });
+
+    try {
+      const response = await apiClient.get<NotificationApiResponse>(
+        '/notifications',
+        { params: { limit: 100, offset: 0 } },
       );
-      return {
-        notifications: updated,
-        unreadCount: updated.filter((n) => !n.read).length,
-      };
-    });
+
+      const notifications = response.data.notifications.map(
+        toNotificationItem,
+      );
+
+      set({
+        notifications,
+        unreadCount: response.data.unread_count,
+        isLoading: false,
+        error: null,
+      });
+    } catch (error) {
+      set({
+        isLoading: false,
+        error: getErrorMessage(error),
+      });
+    }
   },
 
-  markAllAsRead: () => {
-    set((state) => ({
-      notifications: state.notifications.map((n) => ({ ...n, read: true })),
-      unreadCount: 0,
-    }));
+  markAsRead: async (id) => {
+    const notification = get().notifications.find((item) => item.id === id);
+
+    if (!notification || notification.read) return;
+
+    try {
+      await apiClient.patch(
+        `/notifications/${encodeURIComponent(id)}/read`,
+      );
+
+      const notifications = get().notifications.map((item) =>
+        item.id === id ? { ...item, read: true } : item,
+      );
+
+      set({
+        notifications,
+        unreadCount: syncUnreadCount(notifications),
+        error: null,
+      });
+    } catch (error) {
+      set({ error: getErrorMessage(error) });
+      throw error;
+    }
   },
 
-  deleteNotification: (id: string) => {
-    set((state) => {
-      const updated = state.notifications.filter((n) => n.id !== id);
-      return {
-        notifications: updated,
-        unreadCount: updated.filter((n) => !n.read).length,
-      };
-    });
+  markAllAsRead: async () => {
+    const previousNotifications = get().notifications;
+
+    if (!previousNotifications.some((item) => !item.read)) return;
+
+    try {
+      await apiClient.patch('/notifications/read-all');
+
+      const notifications = get().notifications.map((item) => ({
+        ...item,
+        read: true,
+      }));
+
+      set({
+        notifications,
+        unreadCount: 0,
+        error: null,
+      });
+    } catch (error) {
+      set({ error: getErrorMessage(error) });
+      throw error;
+    }
   },
 
-  addNotification: (item) => {
-    const newNotif: NotificationItem = {
-      ...item,
-      id: 'notif-' + Math.random().toString(36).substring(2, 8),
-      timestamp: 'Just now',
-      read: false,
-    };
-    set((state) => ({
-      notifications: [newNotif, ...state.notifications],
-      unreadCount: state.unreadCount + 1,
-    }));
+  deleteNotification: async (id) => {
+    try {
+      await apiClient.delete(
+        `/notifications/${encodeURIComponent(id)}`,
+      );
+
+      const notifications = get().notifications.filter(
+        (item) => item.id !== id,
+      );
+
+      set({
+        notifications,
+        unreadCount: syncUnreadCount(notifications),
+        error: null,
+      });
+    } catch (error) {
+      set({ error: getErrorMessage(error) });
+      throw error;
+    }
   },
 
-  startSimulation: () => {
-    if (get().isSimulatingWs) return;
-    set({ isSimulatingWs: true });
+  addNotification: async (item) => {
+    try {
+      const response = await apiClient.post<NotificationApiItem>(
+        '/notifications',
+        {
+          title: item.title,
+          message: item.message,
+          type: item.type,
+          link_url: item.linkUrl ?? null,
+        },
+      );
 
-    // Periodically emit real-time WebSocket alerts
-    let idx = 0;
-    const interval = window.setInterval(() => {
-      const nextAlert = randomLiveAlerts[idx % randomLiveAlerts.length];
-      get().addNotification(nextAlert);
-      idx++;
-    }, 45000); // every 45s a realistic notification pops up
+      const notification = toNotificationItem(response.data);
 
-    // Clean up if window closes
-    window.addEventListener('beforeunload', () => clearInterval(interval));
+      const notifications = [
+        notification,
+        ...get().notifications.filter(
+          (existing) => existing.id !== notification.id,
+        ),
+      ];
+
+      set({
+        notifications,
+        unreadCount: syncUnreadCount(notifications),
+        error: null,
+      });
+    } catch (error) {
+      set({ error: getErrorMessage(error) });
+      throw error;
+    }
   },
+
+  // Kept temporarily for compatibility with existing components.
+  // It deliberately does not generate simulated notifications.
+  startSimulation: () => {},
 }));
-

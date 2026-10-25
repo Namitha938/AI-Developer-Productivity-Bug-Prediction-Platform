@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { Github, Loader2 } from 'lucide-react';
 
@@ -8,33 +7,41 @@ interface OAuthButtonsProps {
   onError?: (msg: string) => void;
 }
 
-export const OAuthButtons: React.FC<OAuthButtonsProps> = ({ onSuccess, onError }) => {
-const loginWithOAuth = useAuthStore((state) => state.loginWithOAuth);
-  const navigate = useNavigate();
-  const [activeProvider, setActiveProvider] = useState<'google' | 'github' | null>(null);
+export const OAuthButtons: React.FC<OAuthButtonsProps> = ({
+  onSuccess,
+  onError,
+}) => {
+  const loginWithOAuth = useAuthStore((state) => state.loginWithOAuth);
+  const [activeProvider, setActiveProvider] = useState<
+    'google' | 'github' | null
+  >(null);
 
   const handleOAuth = async (provider: 'google' | 'github') => {
+    if (activeProvider !== null) return;
+
     setActiveProvider(provider);
-    const useMock = import.meta.env.VITE_USE_MOCK !== 'false';
 
-    if (!useMock) {
-      // In real backend mode, redirect to endpoint
-      window.location.href = `/api/auth/${provider}`;
-      return;
-    }
-
-    // In mock mode, simulate flow and navigate to /auth/callback
     try {
-      const ok = await loginWithOAuth(provider);
-      if (ok) {
-        if (onSuccess) onSuccess();
-        else navigate('/dashboard');
-      } else {
-        if (onError) onError(`Failed to authenticate with ${provider}.`);
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : `Authentication with ${provider} failed.`;
-      if (onError) onError(msg);
+      const success = await loginWithOAuth(provider);
+
+if (!success) {
+  const authError = useAuthStore.getState().error;
+
+  if (authError) {
+    onError?.(authError);
+  }
+
+  return;
+}
+
+onSuccess?.();
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : `Authentication with ${provider} failed.`;
+
+      onError?.(message);
     } finally {
       setActiveProvider(null);
     }
@@ -42,17 +49,16 @@ const loginWithOAuth = useAuthStore((state) => state.loginWithOAuth);
 
   return (
     <div className="space-y-2.5">
-      {/* Google Button */}
       <button
         type="button"
-        onClick={() => void loginWithOAuth('google')}
+        onClick={() => void handleOAuth('google')}
         disabled={activeProvider !== null}
         className="w-full inline-flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/60 disabled:opacity-50 transition-all focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none shadow-sm cursor-pointer"
       >
         {activeProvider === 'google' ? (
           <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
         ) : (
-          <svg className="w-4 h-4" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
             <path
               fill="#4285F4"
               d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -74,10 +80,9 @@ const loginWithOAuth = useAuthStore((state) => state.loginWithOAuth);
         <span>Continue with Google</span>
       </button>
 
-      {/* GitHub Button */}
       <button
         type="button"
-        onClick={() => handleOAuth('github')}
+        onClick={() => void handleOAuth('github')}
         disabled={activeProvider !== null}
         className="w-full inline-flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/60 disabled:opacity-50 transition-all focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none shadow-sm cursor-pointer"
       >

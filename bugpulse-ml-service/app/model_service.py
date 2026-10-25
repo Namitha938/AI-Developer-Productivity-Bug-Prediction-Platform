@@ -1,67 +1,119 @@
+
 from __future__ import annotations
 
 import os
 from pathlib import Path
 from typing import Any
 
-import joblib
-import numpy as np
+import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-from app.features import FEATURE_NAMES, feature_vector
 
-DEFAULT_MODEL_PATH = Path(__file__).resolve().parents[1] / "models" / "bug_risk_model.joblib"
+DEFAULT_MODEL_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "models"
+    / "codet5-finetuned"
+)
 MODEL_PATH = Path(os.getenv("BUGPULSE_MODEL_PATH", str(DEFAULT_MODEL_PATH)))
 
 
 class BugRiskModel:
     def __init__(self, model_path: Path = MODEL_PATH) -> None:
         self.model_path = model_path
-        self.bundle: dict[str, Any] | None = None
+        self.tokenizer: Any | None = None
+        self.model: Any | None = None
         self.load_error: str | None = None
+        self.device = torch.device("cpu")
         self.load()
 
     def load(self) -> None:
-        self.bundle = None
+        self.tokenizer = None
+        self.model = None
         self.load_error = None
-        if not self.model_path.is_file():
-            self.load_error = "Trained model not found. Train one using scripts/train.py and a labeled dataset."
+
+        if not (self.model_path / "config.json").is_file():
+            self.load_error = (
+                f"Model config not found at {self.model_path}. "
+                "Check BUGPULSE_MODEL_PATH and the model folder."
+            )
             return
+
         try:
-            loaded = joblib.load(self.model_path)
-            if not isinstance(loaded, dict) or "model" not in loaded:
-                raise ValueError("Model artifact has an unsupported format")
-            if loaded.get("feature_names") != FEATURE_NAMES:
-                raise ValueError("Model feature schema does not match this service; retrain the model")
-            self.bundle = loaded
-        except Exception as exc:  # Surface a clear unavailable status, not a fabricated prediction.
-            self.load_error = f"Could not load model artifact: {exc}"
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                str(self.model_path),
+                local_files_only=True,
+            )
+
+            self.model = AutoModelForSequenceClassification.from_pretrained(
+                str(self.model_path),
+                local_files_only=True,
+                low_cpu_mem_usage=True,
+            )
+
+            self.model.to(self.device)
+            self.model.eval()
+
+            labels = {
+                int(index): str(label).upper()
+                for index, label in self.model.config.id2label.items()
+            }
+
+            if labels.get(0) != "SECURE" or labels.get(1) != "VULNERABLE":
+                raise ValueError(
+                    f"Expected labels 0=SECURE and 1=VULNERABLE; "
+                    f"received {labels}"
+                )
+
+        except Exception as exc:
+            self.tokenizer = None
+            self.model = None
+            self.load_error = f"Could not load CodeT5: {exc}"
 
     @property
     def ready(self) -> bool:
-        return self.bundle is not None
+        return self.model is not None and self.tokenizer is not None
 
     @property
     def version(self) -> str:
-        if self.bundle:
-            return str(self.bundle.get("model_version", "unknown"))
-        return "not-trained"
+        return "codet5-finetuned-v1" if self.ready else "not-loaded"
 
+    @torch.inference_mode()
     def predict(self, code: str) -> dict[str, Any]:
-        if not self.bundle:
-            raise RuntimeError(self.load_error or "Model is not ready")
+        if not self.ready:
+            raise RuntimeError(
+                self.load_error or "CodeT5 model is not ready"
+            )
 
-        vector = np.asarray([feature_vector(code)], dtype=float)
-        model = self.bundle["model"]
-        classes = list(model.classes_)
-        if 1 not in classes:
-            raise RuntimeError("Loaded model has no positive (bug-prone) class; retrain with both labels")
-        probability = float(model.predict_proba(vector)[0][classes.index(1)])
-        score = round(probability * 100, 1)
-        category = "Low Risk" if score < 30 else "Moderate Risk" if score < 60 else "High Risk" if score < 80 else "Critical Risk"
+        inputs = self.tokenizer(
+            code,
+            return_tensors="pt",
+            truncation=True,
+            max_length=512,
+        )
+        inputs = {
+            name: tensor.to(self.device)
+            for name, tensor in inputs.items()
+        }
+
+        outputs = self.model(**inputs)
+        probabilities = torch.softmax(outputs.logits, dim=-1)[0]
+
+        vulnerable_probability = float(probabilities[1].item())
+        score = round(vulnerable_probability * 100, 1)
+
+        if score < 30:
+            category = "Low Risk"
+        elif score < 60:
+            category = "Moderate Risk"
+        elif score < 80:
+            category = "High Risk"
+        else:
+            category = "Critical Risk"
+
         return {
             "bug_risk_score": score,
             "risk_category": category,
-            "predicted_bug_prone": probability >= 0.5,
+            "predicted_bug_prone": vulnerable_probability >= 0.5,
             "model_version": self.version,
-            "features": dict(zip(FEATURE_NAMES, vector[0].tolist())),
+            "features": {},
         }
