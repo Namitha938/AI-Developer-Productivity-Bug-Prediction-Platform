@@ -85,6 +85,7 @@ function formatDate(value?: string | number): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
+    
 }
 
 function riskClasses(category: string): string {
@@ -641,4 +642,5 @@ function MetricCard({
       <p className="text-[11px] text-slate-400 mt-1">{description}</p>
     </div>
   );
+
 }
