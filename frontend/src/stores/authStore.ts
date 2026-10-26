@@ -10,6 +10,7 @@ import {
   signOut,
   sendEmailVerification,
   GoogleAuthProvider,
+  GithubAuthProvider,
   signInWithPopup,
   updateProfile as updateFirebaseProfile,
   type User as FirebaseUser,
@@ -284,19 +285,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
+      let credential;
       if (provider === 'github') {
-        throw new Error(
-          'GitHub sign-in is not configured yet. Please use Google or email sign-in.'
-        );
+        const githubProvider = new GithubAuthProvider();
+        githubProvider.addScope('read:user');
+        githubProvider.addScope('user:email');
+        credential = await signInWithPopup(auth, githubProvider);
+      } else {
+        const googleProvider = new GoogleAuthProvider();
+        googleProvider.setCustomParameters({
+          prompt: 'select_account',
+        });
+        credential = await signInWithPopup(auth, googleProvider);
       }
-
-      const googleProvider = new GoogleAuthProvider();
-
-      googleProvider.setCustomParameters({
-        prompt: 'select_account',
-      });
-
-      const credential = await signInWithPopup(auth, googleProvider);
       const { user, token } = await syncWithBackend(credential.user);
 
       set({

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../../stores/authStore';
-import { Github, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface OAuthButtonsProps {
   onSuccess?: () => void;
@@ -12,38 +12,36 @@ export const OAuthButtons: React.FC<OAuthButtonsProps> = ({
   onError,
 }) => {
   const loginWithOAuth = useAuthStore((state) => state.loginWithOAuth);
-  const [activeProvider, setActiveProvider] = useState<
-    'google' | 'github' | null
-  >(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleOAuth = async (provider: 'google' | 'github') => {
-    if (activeProvider !== null) return;
+  const handleGoogleSignIn = async () => {
+    if (isLoading) return;
 
-    setActiveProvider(provider);
+    setIsLoading(true);
 
     try {
-      const success = await loginWithOAuth(provider);
+      const success = await loginWithOAuth('google');
 
-if (!success) {
-  const authError = useAuthStore.getState().error;
+      if (!success) {
+        const authError = useAuthStore.getState().error;
 
-  if (authError) {
-    onError?.(authError);
-  }
+        if (authError) {
+          onError?.(authError);
+        }
 
-  return;
-}
+        return;
+      }
 
-onSuccess?.();
+      onSuccess?.();
     } catch (error: unknown) {
       const message =
         error instanceof Error
           ? error.message
-          : `Authentication with ${provider} failed.`;
+          : 'Authentication with Google failed.';
 
       onError?.(message);
     } finally {
-      setActiveProvider(null);
+      setIsLoading(false);
     }
   };
 
@@ -51,11 +49,11 @@ onSuccess?.();
     <div className="space-y-2.5">
       <button
         type="button"
-        onClick={() => void handleOAuth('google')}
-        disabled={activeProvider !== null}
+        onClick={() => void handleGoogleSignIn()}
+        disabled={isLoading}
         className="w-full inline-flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/60 disabled:opacity-50 transition-all focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none shadow-sm cursor-pointer"
       >
-        {activeProvider === 'google' ? (
+        {isLoading ? (
           <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
         ) : (
           <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
@@ -78,20 +76,6 @@ onSuccess?.();
           </svg>
         )}
         <span>Continue with Google</span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => void handleOAuth('github')}
-        disabled={activeProvider !== null}
-        className="w-full inline-flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/60 disabled:opacity-50 transition-all focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none shadow-sm cursor-pointer"
-      >
-        {activeProvider === 'github' ? (
-          <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
-        ) : (
-          <Github className="w-4 h-4 text-slate-900 dark:text-white" />
-        )}
-        <span>Continue with GitHub</span>
       </button>
     </div>
   );
