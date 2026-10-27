@@ -1,11 +1,4 @@
-
 import React, { useState } from 'react';
-import {
-  EmailAuthProvider,
-  reauthenticateWithCredential,
-  updatePassword,
-  type User,
-} from 'firebase/auth';
 import {
   AlertCircle,
   CheckCircle2,
@@ -16,6 +9,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { auth } from '../../config/firebase';
+import { useAuthStore } from '../../stores/authStore';
 
 interface ChangePasswordProps {
   onSuccess?: () => void;
@@ -64,6 +58,7 @@ const PasswordField: React.FC<PasswordFieldProps> = ({
         type="button"
         onClick={onToggle}
         aria-label={show ? 'Hide password' : 'Show password'}
+        aria-pressed={show}
         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800 dark:hover:text-white"
       >
         {show ? <EyeOff size={17} /> : <Eye size={17} />}
@@ -78,16 +73,22 @@ export const ChangePassword: React.FC<ChangePasswordProps> = ({
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
   const [showFields, setShowFields] = useState({
     current: false,
     next: false,
     confirm: false,
   });
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const user: User | null = auth.currentUser;
+  const changePassword = useAuthStore((state) => state.changePassword);
+  const storeError = useAuthStore((state) => state.error);
+  const clearError = useAuthStore((state) => state.clearError);
+
+  const user = auth.currentUser;
 
   const supportsPasswordChange = Boolean(
     user?.providerData.some((provider) => provider.providerId === 'password')
@@ -95,8 +96,10 @@ export const ChangePassword: React.FC<ChangePasswordProps> = ({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     setError(null);
     setSuccess(null);
+    clearError();
 
     const currentUser = auth.currentUser;
 
@@ -111,8 +114,13 @@ export const ChangePassword: React.FC<ChangePasswordProps> = ({
       )
     ) {
       setError(
-        'This account does not have an email password. Use your connected sign-in provider, or set up email/password sign-in first.'
+        'This account does not have an email/password login. Use your connected sign-in provider instead.'
       );
+      return;
+    }
+
+    if (!currentPassword) {
+      setError('Enter your current password.');
       return;
     }
 
@@ -146,53 +154,36 @@ export const ChangePassword: React.FC<ChangePasswordProps> = ({
       return;
     }
 
-    if (!currentUser.email) {
-      setError('No email address is available for this account.');
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const credential = EmailAuthProvider.credential(
-        currentUser.email,
-        currentPassword
-      );
+      const changed = await changePassword('', newPassword);
 
-      await reauthenticateWithCredential(currentUser, credential);
-      await updatePassword(currentUser, newPassword);
+      if (!changed) {
+        setError(
+          useAuthStore.getState().error ||
+            'Unable to change your password. Please try again.'
+        );
+        return;
+      }
 
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+
+      setShowFields({
+        current: false,
+        next: false,
+        confirm: false,
+      });
+
       setSuccess('Your password has been changed successfully.');
       onSuccess?.();
-    } catch (err: unknown) {
-      const code = (err as { code?: string })?.code;
-
-      switch (code) {
-        case 'auth/invalid-credential':
-        case 'auth/wrong-password':
-        case 'auth/invalid-login-credentials':
-          setError('Your current password is incorrect.');
-          break;
-        case 'auth/weak-password':
-          setError('Firebase rejected this password as too weak. Choose another.');
-          break;
-        case 'auth/requires-recent-login':
-          setError(
-            'For security, sign out and sign in again before changing your password.'
-          );
-          break;
-        case 'auth/too-many-requests':
-          setError('Too many attempts. Please wait before trying again.');
-          break;
-        case 'auth/network-request-failed':
-          setError('Network error. Check your connection and try again.');
-          break;
-        default:
-          setError('Unable to change your password right now. Please try again.');
-      }
+    } catch {
+      setError(
+        useAuthStore.getState().error ||
+          'Unable to change your password right now. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -213,10 +204,12 @@ export const ChangePassword: React.FC<ChangePasswordProps> = ({
       <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 text-blue-500" size={21} />
+
           <div>
             <h3 className="font-semibold text-slate-900 dark:text-white">
               Password management
             </h3>
+
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
               Your account currently uses an external sign-in provider. There
               is no password managed by BugPulse AI to change here.
@@ -233,10 +226,12 @@ export const ChangePassword: React.FC<ChangePasswordProps> = ({
         <div className="rounded-lg bg-blue-50 p-2.5 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
           <KeyRound size={21} />
         </div>
+
         <div>
           <h3 className="font-semibold text-slate-900 dark:text-white">
             Change password
           </h3>
+
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Verify your current password before setting a new one.
           </p>
@@ -244,13 +239,13 @@ export const ChangePassword: React.FC<ChangePasswordProps> = ({
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
+        {(error || (!success && storeError)) && (
           <div
             role="alert"
             className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
           >
             <AlertCircle size={17} className="mt-0.5 shrink-0" />
-            <span>{error}</span>
+            <span>{error || storeError}</span>
           </div>
         )}
 

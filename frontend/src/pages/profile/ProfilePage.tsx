@@ -2,13 +2,15 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import {
+  ShieldCheck,
   ShieldAlert,
   Mail,
-  Phone,
   CheckCircle2,
   AlertCircle,
   ExternalLink,
   RefreshCw,
+  LockKeyhole,
+  Loader2,
 } from 'lucide-react';
 import {
   getProfile,
@@ -20,6 +22,9 @@ import {
   updateAccountPreferences,
   getConnectedAccounts,
   getSecurityStatus,
+  sendEmailVerificationCode,
+  verifyEmailVerificationCode,
+  disableEmailVerification,
   type AccountPreferences,
   type NotificationPreferences,
   type ConnectedAccountsResponse,
@@ -27,6 +32,7 @@ import {
 } from '../../api/accountSettingsApi';
 import { ConnectedAccounts } from '@/components/profile/ConnectedAccounts';
 import { ChangePassword } from '../../components/settings/ChangePassword';
+
 type ProfileTab = 'profile' | 'security' | 'connected' | 'preferences';
 
 const DEFAULT_NOTIFICATIONS: NotificationPreferences = {
@@ -36,6 +42,8 @@ const DEFAULT_NOTIFICATIONS: NotificationPreferences = {
   weekly_report: false,
 };
 
+const RESEND_COOLDOWN_SECONDS = 60;
+
 const inputClass =
   'w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500';
 
@@ -44,20 +52,26 @@ const cardClass =
 
 const mutedTextClass = 'text-xs text-slate-500 dark:text-slate-400';
 
+const primaryButtonClass =
+  'inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+
+const secondaryButtonClass =
+  'inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+
 const formatDate = (value: string | number | null | undefined) => {
-  if (value === null || value === undefined || value === '') return 'Unavailable';
+  if (value === null || value === undefined || value === '') {
+    return 'Unavailable';
+  }
 
-  const date =
-    typeof value === 'number'
-      ? new Date(value)
-      : new Date(value);
+  const date = typeof value === 'number' ? new Date(value) : new Date(value);
 
-  return Number.isNaN(date.getTime()) ? 'Unavailable' : date.toLocaleString();
+  return Number.isNaN(date.getTime())
+    ? 'Unavailable'
+    : date.toLocaleString();
 };
 
 export const ProfilePage: React.FC = () => {
   const { user, updateProfile } = useAuthStore();
-
   const location = useLocation();
 
   const [activeTab, setActiveTab] = useState<ProfileTab>(
@@ -91,6 +105,14 @@ export const ProfilePage: React.FC = () => {
     useState<ConnectedAccountsResponse | null>(null);
   const [securityLoading, setSecurityLoading] = useState(false);
   const [securityError, setSecurityError] = useState('');
+
+  // Email-verification UI state.
+  const [verificationCode, setVerificationCode] = useState('');
+  const [codeRequested, setCodeRequested] = useState(false);
+  const [verificationBusy, setVerificationBusy] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
+  const [verificationMessage, setVerificationMessage] = useState('');
+  const [resendSeconds, setResendSeconds] = useState(0);
 
   const initials =
     fullName
@@ -245,9 +267,118 @@ export const ProfilePage: React.FC = () => {
     };
   }, [user?.id]);
 
-  const handleSave = async (
-    event: React.FormEvent<HTMLFormElement>,
-  ) => {
+  useEffect(() => {
+    if (resendSeconds <= 0) return;
+
+    const timeout = window.setTimeout(() => {
+      setResendSeconds((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timeout);
+  }, [resendSeconds]);
+
+  const handleRequestCode = async () => {
+    setVerificationError('');
+    setVerificationMessage('');
+    setVerificationBusy(true);
+
+    try {
+      const response = await sendEmailVerificationCode();
+
+      setCodeRequested(true);
+      setVerificationCode('');
+      setResendSeconds(RESEND_COOLDOWN_SECONDS);
+      setVerificationMessage(
+        response.message || 'A verification code has been sent to your email.',
+      );
+    } catch (error: any) {
+      console.error('Failed to send email verification code:', error);
+
+      const detail = error?.response?.data?.detail;
+      setVerificationError(
+        typeof detail === 'string'
+          ? detail
+          : 'Could not send the verification code. Please try again later.',
+      );
+    } finally {
+      setVerificationBusy(false);
+    }
+  };
+
+  const handleVerifyCode = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!/^\d{6}$/.test(verificationCode)) {
+      setVerificationError('Enter the six-digit code from your email.');
+      return;
+    }
+
+    setVerificationBusy(true);
+    setVerificationError('');
+    setVerificationMessage('');
+
+    try {
+      const response = await verifyEmailVerificationCode(verificationCode);
+
+      setVerificationMessage(
+        response.message || 'Email verification setting enabled.',
+      );
+      setVerificationCode('');
+      setCodeRequested(false);
+      setResendSeconds(0);
+
+      await loadSecurityData();
+    } catch (error: any) {
+      console.error('Failed to verify email code:', error);
+
+      const detail = error?.response?.data?.detail;
+      setVerificationError(
+        typeof detail === 'string'
+          ? detail
+          : 'The code could not be verified. Check the code and try again.',
+      );
+    } finally {
+      setVerificationBusy(false);
+    }
+  };
+
+  const handleDisableEmailVerification = async () => {
+    const confirmed = window.confirm(
+      'Disable the email-verification setting for your account?',
+    );
+
+    if (!confirmed) return;
+
+    setVerificationBusy(true);
+    setVerificationError('');
+    setVerificationMessage('');
+
+    try {
+      const response = await disableEmailVerification();
+
+      setVerificationMessage(
+        response.message || 'Email-verification setting disabled.',
+      );
+      setCodeRequested(false);
+      setVerificationCode('');
+      setResendSeconds(0);
+
+      await loadSecurityData();
+    } catch (error: any) {
+      console.error('Failed to disable email verification:', error);
+
+      const detail = error?.response?.data?.detail;
+      setVerificationError(
+        typeof detail === 'string'
+          ? detail
+          : 'Could not disable the email-verification setting.',
+      );
+    } finally {
+      setVerificationBusy(false);
+    }
+  };
+
+  const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaveError('');
     setPreferencesError('');
@@ -317,12 +448,8 @@ export const ProfilePage: React.FC = () => {
     setSavedSuccess(false);
 
     if (activeTab === 'preferences') {
-      setTimezone(
-        savedPreferences?.timezone || 'Asia/Kolkata',
-      );
-      setLanguage(
-        savedPreferences?.language || 'English (US)',
-      );
+      setTimezone(savedPreferences?.timezone || 'Asia/Kolkata');
+      setLanguage(savedPreferences?.language || 'English (US)');
       setNotifications({
         ...DEFAULT_NOTIFICATIONS,
         ...(savedPreferences?.notifications || {}),
@@ -350,6 +477,9 @@ export const ProfilePage: React.FC = () => {
       </p>
     </div>
   );
+
+  const emailVerificationEnabled =
+    securityStatus?.email_verification_enabled ?? false;
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 font-sans">
@@ -409,7 +539,7 @@ export const ProfilePage: React.FC = () => {
 
       {profileLoading ? (
         <div className={`${cardClass} items-center py-12`}>
-          <div className="w-6 h-6 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
+          <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
           <p className={mutedTextClass}>Loading your profile…</p>
         </div>
       ) : profileError ? (
@@ -425,7 +555,7 @@ export const ProfilePage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => window.location.reload()}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
+                  className={primaryButtonClass}
                 >
                   Retry
                 </button>
@@ -714,7 +844,7 @@ export const ProfilePage: React.FC = () => {
                 type="button"
                 onClick={handleCancel}
                 disabled={isSaving || profileLoading || (activeTab === 'preferences' && preferencesLoading)}
-                className="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                className={secondaryButtonClass}
               >
                 Cancel
               </button>
@@ -722,7 +852,7 @@ export const ProfilePage: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSaving || profileLoading || (activeTab === 'preferences' && preferencesLoading)}
-                className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-xs transition-colors"
+                className={primaryButtonClass}
               >
                 {isSaving ? 'Saving…' : activeTab === 'preferences' ? 'Save preferences' : 'Save changes'}
               </button>
@@ -759,7 +889,8 @@ export const ProfilePage: React.FC = () => {
               </p>
               <ConnectedAccounts />
               <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                Backend-reported providers: {connectedAccounts.providers.length
+                Backend-reported providers:{' '}
+                {connectedAccounts.providers.length
                   ? connectedAccounts.providers.map((provider) => provider.provider_id).join(', ')
                   : 'None reported'}
               </div>
@@ -786,33 +917,30 @@ export const ProfilePage: React.FC = () => {
             <>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                 <div className="space-y-6">
-                  
-<div className={cardClass}>
-  <div className="flex items-center justify-between gap-3 text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
-    <span className="text-slate-900 dark:text-white">
-      Password management
-    </span>
-    {statusPill('Firebase authentication')}
-  </div>
+                  <div className={cardClass}>
+                    <div className="flex items-center justify-between gap-3 text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-900 dark:text-white">
+                        Password management
+                      </span>
+                      {statusPill('Firebase authentication')}
+                    </div>
 
-  <p className={mutedTextClass}>
-    Change your password while signed in, or request a secure password-reset
-    link if you have forgotten it.
-  </p>
+                    <p className={mutedTextClass}>
+                      Change your password while signed in, or request a secure password-reset link if you have forgotten it.
+                    </p>
 
-  <ChangePassword />
+                    <ChangePassword />
 
-  <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
-    <Link
-      to="/reset-password"
-      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
-    >
-      <Mail className="h-3.5 w-3.5" />
-      Forgot your password? Reset by email
-    </Link>
-  </div>
-</div>
-
+                    <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
+                      <Link
+                        to="/forgot-password"
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+                      >
+                        <Mail className="h-3.5 w-3.5" />
+                        Forgot your password? Reset by email
+                      </Link>
+                    </div>
+                  </div>
 
                   <div className={cardClass}>
                     <div className="flex items-center justify-between text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
@@ -865,68 +993,187 @@ export const ProfilePage: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
+                  {/* This is the email-verification setting, not Firebase MFA. */}
                   <div className={cardClass}>
-                    <div className="flex items-center justify-between text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <span className="text-slate-900 dark:text-white">Two-factor authentication</span>
-                      {securityStatus.two_factor_enabled ? statusPill('Enabled') : statusPill('Not enabled')}
+                    <div className="flex items-center justify-between gap-3 text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-2 text-slate-900 dark:text-white">
+                        <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        Email verification
+                      </div>
+
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                          emailVerificationEnabled
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50'
+                            : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50'
+                        }`}
+                      >
+                        {emailVerificationEnabled ? 'Enabled' : 'Disabled'}
+                      </span>
                     </div>
-                    {securityStatus.two_factor_enabled ? (
-                      <p className={mutedTextClass}>
-                        The backend reports an enrolled second factor. This page does not change 2FA enrollment.
+
+                    <p className={mutedTextClass}>
+                      Confirm control of your verified email address with a short-lived code. This setting is saved to your account.
+                    </p>
+
+                    <div className="flex items-start gap-2.5 p-3 rounded-lg border border-blue-200/70 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/20">
+                      <LockKeyhole className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+                      <p className="text-xs text-blue-800 dark:text-blue-200 leading-relaxed">
+                        This setting does not yet require a second code during sign-in, so it is not login-enforced two-factor authentication.
                       </p>
-                    ) : (
-                      <div className="p-3 rounded-lg bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/40 flex items-start gap-2.5">
-                        <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                        <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
-                          Two-factor enrollment and verification are not implemented in this application.
-                        </p>
+                    </div>
+
+                    {verificationError && (
+                      <div role="alert" className="flex items-start gap-2 p-3 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-300 text-xs">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span>{verificationError}</span>
                       </div>
                     )}
-                    <button
-                      type="button"
-                      disabled={!securityStatus.two_factor_supported_by_app}
-                      title="Two-factor management is not available in this application"
-                      className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-400 cursor-not-allowed disabled:opacity-70"
-                    >
-                      Two-factor management unavailable
-                    </button>
+
+                    {verificationMessage && (
+                      <div role="status" aria-live="polite" className="flex items-start gap-2 p-3 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 text-xs">
+                        <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                        <span>{verificationMessage}</span>
+                      </div>
+                    )}
+
+                    {!securityStatus.email_verified ? (
+                      <div className="space-y-3">
+                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                          Verify your email address with Firebase before enabling this setting.
+                        </p>
+                        <button type="button" disabled className={secondaryButtonClass}>
+                          <Mail className="w-3.5 h-3.5" />
+                          Email verification required
+                        </button>
+                      </div>
+                    ) : emailVerificationEnabled ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300">
+                          <CheckCircle2 className="w-4 h-4" />
+                          The email-verification setting is active.
+                        </div>
+
+                        {securityStatus.email_verification_enabled_at && (
+                          <p className={mutedTextClass}>
+                            Enabled on {formatDate(securityStatus.email_verification_enabled_at)}
+                          </p>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => void handleDisableEmailVerification()}
+                          disabled={verificationBusy}
+                          className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg border border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-300 text-xs font-semibold hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
+                        >
+                          {verificationBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                          Disable email verification
+                        </button>
+                      </div>
+                    ) : !codeRequested ? (
+                      <div className="space-y-3">
+                        <p className={mutedTextClass}>
+                          A six-digit code will be sent to {securityStatus.email || 'your verified email address'}.
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleRequestCode()}
+                          disabled={verificationBusy || securityLoading}
+                          className={primaryButtonClass}
+                        >
+                          {verificationBusy ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Mail className="w-3.5 h-3.5" />
+                          )}
+                          {verificationBusy ? 'Sending code…' : 'Send verification code'}
+                        </button>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleVerifyCode} className="space-y-3">
+                        <div className="space-y-1">
+                          <label htmlFor="email-verification-code" className="block text-xs font-medium text-slate-700 dark:text-slate-200">
+                            Six-digit verification code
+                          </label>
+                          <input
+                            id="email-verification-code"
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            pattern="[0-9]{6}"
+                            maxLength={6}
+                            minLength={6}
+                            required
+                            value={verificationCode}
+                            onChange={(event) => {
+                              setVerificationCode(
+                                event.target.value.replace(/\D/g, '').slice(0, 6),
+                              );
+                              setVerificationError('');
+                            }}
+                            placeholder="Enter 6-digit code"
+                            className={`${inputClass} text-center tracking-[0.35em] font-mono text-base`}
+                            disabled={verificationBusy}
+                          />
+                          <p className={mutedTextClass}>
+                            Check your inbox and spam folder. Codes expire after 10 minutes.
+                          </p>
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={verificationBusy || verificationCode.length !== 6}
+                          className={primaryButtonClass}
+                        >
+                          {verificationBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                          {verificationBusy ? 'Verifying…' : 'Verify code and enable'}
+                        </button>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => void handleRequestCode()}
+                            disabled={verificationBusy || resendSeconds > 0}
+                            className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline disabled:text-slate-400 disabled:no-underline"
+                          >
+                            {resendSeconds > 0
+                              ? `Resend available in ${resendSeconds}s`
+                              : 'Resend code'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCodeRequested(false);
+                              setVerificationCode('');
+                              setVerificationError('');
+                              setVerificationMessage('');
+                            }}
+                            disabled={verificationBusy}
+                            className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    )}
                   </div>
 
-                  <div className={cardClass}>
-                    <div className="flex items-center justify-between text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <span className="text-slate-900 dark:text-white">Recovery methods</span>
-                      {statusPill('Email reset')}
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Mail className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-xs font-semibold text-slate-900 dark:text-white">Primary email</p>
-                        <p className={mutedTextClass}>{securityStatus.email || 'No email available'}</p>
-                        <p className="text-[11px] text-slate-400 mt-1">Firebase password reset can use your account email.</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Phone className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-xs font-semibold text-slate-900 dark:text-white">Phone recovery</p>
-                        <p className={mutedTextClass}>No phone recovery method is configured in this profile page.</p>
-                      </div>
-                    </div>
-                  </div>
 
-                  <div className={cardClass}>
-                    <div className="flex items-center justify-between text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <span className="text-slate-900 dark:text-white">Active sessions</span>
-                      {securityStatus.session_management_available ? statusPill('Available') : statusPill('Unavailable')}
-                    </div>
-                    <p className={mutedTextClass}>
-                      {securityStatus.session_management_available
-                        ? 'Session management is reported as available by the backend.'
-                        : 'Individual session listing and revocation are not implemented. No session-management action is available here.'}
-                    </p>
-                    {!securityStatus.session_management_available && notImplementedNotice}
-                  </div>
                 </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => void loadSecurityData()}
+                  disabled={securityLoading || verificationBusy}
+                  className={secondaryButtonClass}
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${securityLoading ? 'animate-spin' : ''}`} />
+                  Refresh security status
+                </button>
               </div>
             </>
           ) : (
@@ -935,7 +1182,7 @@ export const ProfilePage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => void loadSecurityData()}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
+                className={primaryButtonClass}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 Retry

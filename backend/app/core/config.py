@@ -29,11 +29,16 @@ class Settings(BaseSettings):
 
     # Encryption key for GitHub access tokens stored in Firestore
     GITHUB_TOKEN_ENCRYPTION_KEY: str = ""
-
+    SMTP_HOST: str = "smtp-relay.brevo.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    MAIL_FROM: str = ""
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        
     )
 
 

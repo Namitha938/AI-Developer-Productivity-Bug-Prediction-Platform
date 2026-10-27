@@ -11,11 +11,18 @@ import {
   sendEmailVerification,
   GoogleAuthProvider,
   GithubAuthProvider,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword as updateFirebasePassword,
   signInWithPopup,
   updateProfile as updateFirebaseProfile,
   type User as FirebaseUser,
+  getMultiFactorResolver,
+TotpMultiFactorGenerator,
+type MultiFactorResolver,
+type MultiFactorError,
+  linkWithCredential,
 } from 'firebase/auth';
-
 interface AuthState {
   user: User | null;
   accessToken: string | null;
@@ -43,7 +50,10 @@ interface AuthState {
   ) => Promise<{ success: boolean; message?: string }>;
 
   loginWithOAuth: (provider: 'google' | 'github') => Promise<boolean>;
-
+changePassword: (
+  currentPassword: string,
+  newPassword: string
+) => Promise<boolean>;
   updateProfile: (updates: Partial<User>) => Promise<User>;
   uploadAvatar: (dataUrlOrFile: string | File) => Promise<string>;
   deleteAvatar: () => Promise<void>;
@@ -85,7 +95,7 @@ function clearLegacySession() {
     localStorage.removeItem(key);
   });
 }
-
+let pendingMfaResolver: MultiFactorResolver | null = null;
 function mapApiUser(apiUser: ApiUser, firebaseUser: FirebaseUser): User {
   return {
     id: String(apiUser.id),
@@ -145,64 +155,194 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   tempToken: null,
   pendingUser: null,
 
-  login: async (email: string, pass: string) => {
-    set({ isLoading: true, error: null });
 
-    try {
-      const credential = await signInWithEmailAndPassword(
-        auth,
-        email.trim(),
-        pass
-      );
+login: async (email: string, pass: string) => {
+  set({ isLoading: true, error: null });
+  pendingMfaResolver = null;
 
-      const { user, token } = await syncWithBackend(credential.user);
+  try {
+    const credential = await signInWithEmailAndPassword(
+      auth,
+      email.trim(),
+      pass
+    );
 
-      set({
-        user,
-        accessToken: token,
-        refreshToken: null,
-        isAuthenticated: true,
-        isLoading: false,
-        error: null,
-        twoFactorRequired: false,
-        tempToken: null,
-        pendingUser: null,
-      });
+    const { user, token } = await syncWithBackend(credential.user);
 
-      return { success: true };
-    } catch (err: unknown) {
-      if (auth.currentUser) {
-        await signOut(auth).catch(() => undefined);
+    set({
+      user,
+      accessToken: token,
+      refreshToken: null,
+      isAuthenticated: true,
+      isLoading: false,
+      error: null,
+      twoFactorRequired: false,
+      tempToken: null,
+      pendingUser: null,
+    });
+
+    return { success: true };
+  } catch (err: unknown) {
+    const firebaseError = err as {
+      code?: string;
+      message?: string;
+    };
+
+    if (firebaseError.code === 'auth/multi-factor-auth-required') {
+      try {
+        pendingMfaResolver = getMultiFactorResolver(
+          auth,
+          err as MultiFactorError
+        );
+
+        const hasTotpFactor = pendingMfaResolver.hints.some(
+          (hint) =>
+            hint.factorId === TotpMultiFactorGenerator.FACTOR_ID
+        );
+
+        if (!hasTotpFactor) {
+          pendingMfaResolver = null;
+          throw new Error(
+            'No supported authenticator factor was found for this account.'
+          );
+        }
+
+        set({
+          user: null,
+          accessToken: null,
+          refreshToken: null,
+          isAuthenticated: false,
+          isLoading: false,
+          error: null,
+          twoFactorRequired: true,
+          tempToken: null,
+          pendingUser: null,
+        });
+
+        return { success: false, requires2FA: true };
+      } catch (resolverError: unknown) {
+        pendingMfaResolver = null;
+
+        set({
+          isLoading: false,
+          twoFactorRequired: false,
+          error:
+            resolverError instanceof Error
+              ? resolverError.message
+              : 'Could not start two-factor verification.',
+        });
+
+        return { success: false };
       }
-
-      const message =
-        err instanceof Error ? err.message : 'Login failed.';
-
-      set({
-        user: null,
-        accessToken: null,
-        refreshToken: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: message,
-        twoFactorRequired: false,
-        tempToken: null,
-        pendingUser: null,
-      });
-
-      return { success: false };
     }
-  },
 
-  verify2FA: async () => {
-    const message =
-      'Two-factor authentication is not configured yet.';
+    pendingMfaResolver = null;
 
-    set({ error: message, isLoading: false });
+    if (auth.currentUser) {
+      await signOut(auth).catch(() => undefined);
+    }
+
+    set({
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: firebaseError.message || 'Login failed.',
+      twoFactorRequired: false,
+      tempToken: null,
+      pendingUser: null,
+    });
+
+    return { success: false };
+  }
+},
+
+
+
+verify2FA: async (code: string, isBackupCode = false) => {
+  if (isBackupCode) {
+    set({
+      error: 'Backup codes are not implemented yet. Enter an authenticator code.',
+    });
     return false;
-  },
+  }
 
-  cancel2FA: () => {
+  const resolver = pendingMfaResolver;
+  const otp = code.replace(/\s/g, '');
+
+  if (!resolver) {
+    set({
+      error: 'Your sign-in challenge has expired. Please sign in again.',
+      twoFactorRequired: false,
+    });
+    return false;
+  }
+
+  if (!/^\d{6}$/.test(otp)) {
+    set({ error: 'Enter the six-digit code from your authenticator app.' });
+    return false;
+  }
+
+  set({ isLoading: true, error: null });
+
+  try {
+    const hint = resolver.hints.find(
+      (item) =>
+        item.factorId === TotpMultiFactorGenerator.FACTOR_ID
+    );
+
+    if (!hint) {
+      throw new Error('No authenticator factor is available.');
+    }
+
+    const assertion = TotpMultiFactorGenerator.assertionForSignIn(
+      hint.uid,
+      otp
+    );
+
+    const credential = await resolver.resolveSignIn(assertion);
+    pendingMfaResolver = null;
+
+    const { user, token } = await syncWithBackend(credential.user);
+
+    set({
+      user,
+      accessToken: token,
+      refreshToken: null,
+      isAuthenticated: true,
+      isLoading: false,
+      error: null,
+      twoFactorRequired: false,
+      tempToken: null,
+      pendingUser: null,
+    });
+
+    return true;
+  } catch (err: unknown) {
+    const firebaseError = err as {
+      code?: string;
+      message?: string;
+    };
+
+    // Preserve the resolver for a retry after an invalid or expired code.
+    set({
+      isLoading: false,
+      error:
+        firebaseError.code === 'auth/invalid-verification-code' ||
+        firebaseError.code === 'auth/invalid-verification-id'
+          ? 'That code is incorrect or expired. Try the latest code.'
+          : firebaseError.message ||
+            'Two-factor verification failed.',
+      twoFactorRequired: true,
+    });
+
+    return false;
+  }
+},
+
+
+  cancel2FA: () => {pendingMfaResolver = null;
     set({
       twoFactorRequired: false,
       tempToken: null,
@@ -343,6 +483,164 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     }
   },
+
+
+  changePassword: async (
+    currentPassword: string,
+    newPassword: string
+  ) => {
+    const firebaseUser = auth.currentUser;
+
+    if (!firebaseUser) {
+      set({
+        error: 'Please sign in before setting or changing your password.',
+        isLoading: false,
+      });
+      return false;
+    }
+
+    if (!firebaseUser.email) {
+      set({
+        error: 'Your account does not have an email address.',
+        isLoading: false,
+      });
+      return false;
+    }
+
+    const hasPasswordProvider = firebaseUser.providerData.some(
+      (provider) => provider.providerId === 'password'
+    );
+
+    if (hasPasswordProvider && !currentPassword) {
+      set({
+        error: 'Please enter your current password.',
+        isLoading: false,
+      });
+      return false;
+    }
+
+    if (!newPassword) {
+      set({
+        error: 'Please enter a new password.',
+        isLoading: false,
+      });
+      return false;
+    }
+
+    if (newPassword.length < 12) {
+      set({
+        error: 'Your password must contain at least 12 characters.',
+        isLoading: false,
+      });
+      return false;
+    }
+
+    if (!/[A-Z]/.test(newPassword)) {
+      set({
+        error: 'Include at least one uppercase letter.',
+        isLoading: false,
+      });
+      return false;
+    }
+
+    if (!/[0-9]/.test(newPassword)) {
+      set({
+        error: 'Include at least one number.',
+        isLoading: false,
+      });
+      return false;
+    }
+
+    if (!/[^A-Za-z0-9]/.test(newPassword)) {
+      set({
+        error: 'Include at least one special character.',
+        isLoading: false,
+      });
+      return false;
+    }
+
+    if (hasPasswordProvider && currentPassword === newPassword) {
+      set({
+        error: 'Your new password must differ from your current password.',
+        isLoading: false,
+      });
+      return false;
+    }
+
+    set({ isLoading: true, error: null });
+
+    try {
+      if (hasPasswordProvider) {
+        // Existing email/password account: verify the current password.
+        const credential = EmailAuthProvider.credential(
+          firebaseUser.email,
+          currentPassword
+        );
+
+        await reauthenticateWithCredential(firebaseUser, credential);
+        await updateFirebasePassword(firebaseUser, newPassword);
+      } else {
+        // OAuth account without a password: link email/password
+        // to the SAME Firebase user instead of creating another account.
+        const credential = EmailAuthProvider.credential(
+          firebaseUser.email,
+          newPassword
+        );
+
+        await linkWithCredential(firebaseUser, credential);
+      }
+
+      const token = await firebaseUser.getIdToken(true);
+
+      set({
+        accessToken: token,
+        isLoading: false,
+        error: null,
+      });
+
+      return true;
+    } catch (err: unknown) {
+      const firebaseError = err as { code?: string };
+
+      let message = 'Could not save your password. Please try again.';
+
+      switch (firebaseError.code) {
+        case 'auth/invalid-credential':
+        case 'auth/wrong-password':
+        case 'auth/invalid-login-credentials':
+          message = 'Your current password is incorrect.';
+          break;
+
+        case 'auth/email-already-in-use':
+        case 'auth/credential-already-in-use':
+          message =
+            'This email/password credential is already associated with another account. Sign in to the existing account or resolve the account conflict first.';
+          break;
+
+        case 'auth/weak-password':
+          message = 'Your new password is too weak.';
+          break;
+
+        case 'auth/requires-recent-login':
+          message =
+            'For security, please sign in again with your Google, GitHub, or email account, then retry.';
+          break;
+
+        case 'auth/too-many-requests':
+          message = 'Too many attempts. Please try again later.';
+          break;
+
+        case 'auth/provider-already-linked':
+          message =
+            'This account already has an email/password sign-in method. Refresh your session and try changing the password instead.';
+          break;
+      }
+
+      set({ error: message, isLoading: false });
+      return false;
+    }
+  },
+
 
   updateProfile: async (updates: Partial<User>) => {
     const firebaseUser = auth.currentUser;

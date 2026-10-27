@@ -1,4 +1,3 @@
-
 from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -9,6 +8,10 @@ from firebase_admin import auth
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.firebase import db, firebase_app
+from app.services.email_verification import (
+    send_email_code,
+    verify_email_code,
+)
 
 router = APIRouter(prefix="/account", tags=["Account Settings"])
 bearer_scheme = HTTPBearer()
@@ -31,6 +34,10 @@ ALLOWED_LANGUAGES = {
     "French",
 }
 
+
+# -------------------------------------------------------------------
+# Authentication and Firestore helpers
+# -------------------------------------------------------------------
 
 def verify_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
@@ -65,6 +72,31 @@ def require_firestore():
         )
     return db
 
+
+def firebase_user_or_503(uid: str):
+    if firebase_app is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Firebase Admin is not configured",
+        )
+
+    try:
+        return auth.get_user(uid, app=firebase_app)
+    except auth.UserNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Firebase user was not found",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not retrieve Firebase account information",
+        ) from exc
+
+
+# -------------------------------------------------------------------
+# Request models
+# -------------------------------------------------------------------
 
 class NotificationPreferences(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -111,14 +143,23 @@ class PreferencesUpdate(BaseModel):
     def validate_language(cls, value: str | None) -> str | None:
         if value is not None and value not in ALLOWED_LANGUAGES:
             raise ValueError("Unsupported language")
-
         return value
 
 
+class EmailCodeVerifyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(pattern=r"^\d{6}$")
+
+
+# -------------------------------------------------------------------
+# Preferences
+# -------------------------------------------------------------------
+
 def get_preferences_ref(uid: str):
-    firestore = require_firestore()
     return (
-        firestore.collection("users")
+        require_firestore()
+        .collection("users")
         .document(uid)
         .collection("settings")
         .document("preferences")
@@ -139,8 +180,14 @@ def get_preferences(token: dict = Depends(verify_user)):
     }
 
     return {
-        "timezone": saved.get("timezone", DEFAULT_PREFERENCES["timezone"]),
-        "language": saved.get("language", DEFAULT_PREFERENCES["language"]),
+        "timezone": saved.get(
+            "timezone",
+            DEFAULT_PREFERENCES["timezone"],
+        ),
+        "language": saved.get(
+            "language",
+            DEFAULT_PREFERENCES["language"],
+        ),
         "notifications": notifications,
         "updated_at": saved.get("updated_at"),
     }
@@ -154,7 +201,11 @@ def update_preferences(
     uid = token["uid"]
     ref = get_preferences_ref(uid)
 
-    changes = updates.model_dump(exclude_unset=True, exclude_none=True)
+    changes = updates.model_dump(
+        exclude_unset=True,
+        exclude_none=True,
+    )
+
     if not changes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -162,7 +213,11 @@ def update_preferences(
         )
 
     current_snapshot = ref.get()
-    current = current_snapshot.to_dict() if current_snapshot.exists else {}
+    current = (
+        current_snapshot.to_dict()
+        if current_snapshot.exists
+        else {}
+    )
     current = current or {}
 
     if "notifications" in changes:
@@ -178,12 +233,17 @@ def update_preferences(
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    # Merge prevents a timezone update from deleting notification settings.
     ref.set(saved, merge=True)
 
     return {
-        "timezone": saved.get("timezone", DEFAULT_PREFERENCES["timezone"]),
-        "language": saved.get("language", DEFAULT_PREFERENCES["language"]),
+        "timezone": saved.get(
+            "timezone",
+            DEFAULT_PREFERENCES["timezone"],
+        ),
+        "language": saved.get(
+            "language",
+            DEFAULT_PREFERENCES["language"],
+        ),
         "notifications": {
             **DEFAULT_PREFERENCES["notifications"],
             **(saved.get("notifications") or {}),
@@ -192,26 +252,9 @@ def update_preferences(
     }
 
 
-def firebase_user_or_503(uid: str):
-    if firebase_app is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Firebase Admin is not configured",
-        )
-
-    try:
-        return auth.get_user(uid, app=firebase_app)
-    except auth.UserNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Firebase user was not found",
-        ) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Could not retrieve Firebase account information",
-        ) from exc
-
+# -------------------------------------------------------------------
+# Connected accounts
+# -------------------------------------------------------------------
 
 def provider_response(firebase_user):
     providers = []
@@ -241,21 +284,169 @@ def get_connected_accounts(token: dict = Depends(verify_user)):
     }
 
 
+# -------------------------------------------------------------------
+# Security status
+# -------------------------------------------------------------------
+
+def get_security_settings_ref(uid: str):
+    return (
+        require_firestore()
+        .collection("users")
+        .document(uid)
+        .collection("settings")
+        .document("security")
+    )
+
+
 @router.get("/security")
 def get_security_status(token: dict = Depends(verify_user)):
-    firebase_user = firebase_user_or_503(token["uid"])
+    uid = token["uid"]
+    firebase_user = firebase_user_or_503(uid)
 
     multi_factor = getattr(firebase_user, "multi_factor", None)
-    enrolled_factors = getattr(multi_factor, "enrolled_factors", None) or []
+    enrolled_factors = (
+        getattr(multi_factor, "enrolled_factors", None) or []
+    )
+
+    security_ref = get_security_settings_ref(uid)
+    security_snapshot = security_ref.get()
+    security_settings = (
+        security_snapshot.to_dict()
+        if security_snapshot.exists
+        else {}
+    )
+    security_settings = security_settings or {}
 
     return {
         "email": firebase_user.email,
         "email_verified": firebase_user.email_verified,
         "created_at": firebase_user.user_metadata.creation_timestamp,
-        "last_sign_in_at": firebase_user.user_metadata.last_sign_in_timestamp,
+        "last_sign_in_at": (
+            firebase_user.user_metadata.last_sign_in_timestamp
+        ),
         "providers": provider_response(firebase_user),
+
+        # Actual Firebase-enrolled MFA factors, if any.
         "two_factor_enabled": len(enrolled_factors) > 0,
         "two_factor_supported_by_app": False,
+
+        # Separate application email-verification setting.
+        "email_verification_enabled": security_settings.get(
+            "email_verification_enabled",
+            False,
+        ),
+        "email_verification_enabled_at": security_settings.get(
+            "email_verification_enabled_at",
+        ),
+
         "session_management_available": False,
         "password_reset": "firebase_email_flow",
+    }
+
+
+# -------------------------------------------------------------------
+# Email-code verification setting
+# -------------------------------------------------------------------
+
+@router.post("/security/email-code/send")
+def send_security_email_code(
+    token: dict = Depends(verify_user),
+):
+    uid = token["uid"]
+    firebase_user = firebase_user_or_503(uid)
+
+    if not firebase_user.email or not firebase_user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Verify your email address before enabling "
+                "this security setting."
+            ),
+        )
+
+    security_ref = get_security_settings_ref(uid)
+    snapshot = security_ref.get()
+    saved = snapshot.to_dict() if snapshot.exists else {}
+    saved = saved or {}
+
+    if saved.get("email_verification_enabled", False):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email verification is already enabled.",
+        )
+
+    send_email_code(uid, firebase_user.email)
+
+    return {
+        "message": (
+            "Verification code sent to your verified email address."
+        ),
+    }
+
+
+@router.post("/security/email-code/verify")
+def verify_security_email_code(
+    payload: EmailCodeVerifyRequest,
+    token: dict = Depends(verify_user),
+):
+    uid = token["uid"]
+    firebase_user = firebase_user_or_503(uid)
+
+    if not firebase_user.email or not firebase_user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="A verified email address is required.",
+        )
+
+    # Validate the code before enabling the setting.
+    verify_email_code(uid, payload.code)
+
+    security_ref = get_security_settings_ref(uid)
+    enabled_at = datetime.now(timezone.utc).isoformat()
+
+    security_ref.set(
+        {
+            "email_verification_enabled": True,
+            "email_verification_enabled_at": enabled_at,
+        },
+        merge=True,
+    )
+
+    return {
+        "email_verification_enabled": True,
+        "email_verification_enabled_at": enabled_at,
+        "message": "Email verification setting enabled successfully.",
+    }
+
+
+@router.post("/security/email-code/disable")
+def disable_security_email_verification(
+    token: dict = Depends(verify_user),
+):
+    uid = token["uid"]
+    security_ref = get_security_settings_ref(uid)
+    snapshot = security_ref.get()
+    saved = snapshot.to_dict() if snapshot.exists else {}
+    saved = saved or {}
+
+    if not saved.get("email_verification_enabled", False):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Email verification is already disabled.",
+        )
+
+    security_ref.set(
+        {
+            "email_verification_enabled": False,
+            "email_verification_enabled_at": None,
+            "email_verification_disabled_at": (
+                datetime.now(timezone.utc).isoformat()
+            ),
+        },
+        merge=True,
+    )
+
+    return {
+        "email_verification_enabled": False,
+        "message": "Email verification setting disabled.",
     }

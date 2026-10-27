@@ -1,4 +1,3 @@
-
 import { apiClient } from './client';
 
 export interface NotificationPreferences {
@@ -41,10 +40,32 @@ export interface SecurityStatusResponse {
   created_at: number | null;
   last_sign_in_at: number | null;
   providers: ConnectedProvider[];
+
+  // Actual Firebase MFA status.
   two_factor_enabled: boolean;
   two_factor_supported_by_app: boolean;
+
+  // Separate application email-verification setting.
+  email_verification_enabled: boolean;
+  email_verification_enabled_at: string | null;
+
   session_management_available: boolean;
   password_reset: string;
+}
+
+export interface EmailCodeSendResponse {
+  message: string;
+}
+
+export interface EmailCodeVerifyResponse {
+  email_verification_enabled: boolean;
+  email_verification_enabled_at: string;
+  message: string;
+}
+
+export interface EmailVerificationDisableResponse {
+  email_verification_enabled: boolean;
+  message: string;
 }
 
 /**
@@ -84,11 +105,47 @@ export async function getConnectedAccounts(): Promise<ConnectedAccountsResponse>
 }
 
 /**
- * Load security information from Firebase Authentication.
+ * Load the signed-in user's security status.
  */
 export async function getSecurityStatus(): Promise<SecurityStatusResponse> {
   const response = await apiClient.get<SecurityStatusResponse>(
     '/account/security'
+  );
+
+  return response.data;
+}
+
+/**
+ * Request a verification code for the signed-in user's verified email.
+ */
+export async function sendEmailVerificationCode(): Promise<EmailCodeSendResponse> {
+  const response = await apiClient.post<EmailCodeSendResponse>(
+    '/account/security/email-code/send'
+  );
+
+  return response.data;
+}
+
+/**
+ * Verify the six-digit code and enable the email-verification setting.
+ */
+export async function verifyEmailVerificationCode(
+  code: string
+): Promise<EmailCodeVerifyResponse> {
+  const response = await apiClient.post<EmailCodeVerifyResponse>(
+    '/account/security/email-code/verify',
+    { code }
+  );
+
+  return response.data;
+}
+
+/**
+ * Disable the email-verification setting.
+ */
+export async function disableEmailVerification(): Promise<EmailVerificationDisableResponse> {
+  const response = await apiClient.post<EmailVerificationDisableResponse>(
+    '/account/security/email-code/disable'
   );
 
   return response.data;
