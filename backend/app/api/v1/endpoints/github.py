@@ -296,10 +296,19 @@ async def list_github_repositories(
                 },
             )
 
-        if response.status_code == 401:
+        if response.status_code==401:
+            print(
+                "GitHub API returned 401 for repository listing.",
+                "Github username:",
+                connection.get("github_username"),
+                "Token present:",
+                bool(access_token),
+                "Token length:",
+                len(access_token),
+            )
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="GitHub authorization expired or was revoked. Reconnect GitHub.",
+                status_code= status.HTTP_401_UNAUTHORIZED,
+                detail="GitHub authorization expired or was revoked. Reconnect GitHub"
             )
 
         if response.status_code == 403:
