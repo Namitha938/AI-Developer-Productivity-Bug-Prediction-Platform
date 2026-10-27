@@ -1,3 +1,4 @@
+import { verifyLogin2FA } from '../api/accountSettingsApi';
 
 import { create } from 'zustand';
 import type { User } from '../types';
@@ -169,6 +170,18 @@ login: async (email: string, pass: string) => {
 
     const { user, token } = await syncWithBackend(credential.user);
 
+    if (user.twoFactorEnabled) {
+      set({
+        twoFactorRequired: true,
+        pendingUser: user,
+        tempToken: token,
+        isLoading: false,
+        isAuthenticated: false,
+        error: null,
+      });
+      return { success: false, requires2FA: true };
+    }
+
     set({
       user,
       accessToken: token,
@@ -271,7 +284,7 @@ verify2FA: async (code: string, isBackupCode = false) => {
   const resolver = pendingMfaResolver;
   const otp = code.replace(/\s/g, '');
 
-  if (!resolver) {
+  if (!resolver && !get().pendingUser) {
     set({
       error: 'Your sign-in challenge has expired. Please sign in again.',
       twoFactorRequired: false,
@@ -287,38 +300,56 @@ verify2FA: async (code: string, isBackupCode = false) => {
   set({ isLoading: true, error: null });
 
   try {
-    const hint = resolver.hints.find(
-      (item) =>
-        item.factorId === TotpMultiFactorGenerator.FACTOR_ID
-    );
+    if (resolver) {
+      const hint = resolver.hints.find(
+        (item) => item.factorId === TotpMultiFactorGenerator.FACTOR_ID
+      );
+      if (!hint) throw new Error('No authenticator factor is available.');
+      const assertion = TotpMultiFactorGenerator.assertionForSignIn(hint.uid, otp);
+      const credential = await resolver.resolveSignIn(assertion);
+      pendingMfaResolver = null;
 
-    if (!hint) {
-      throw new Error('No authenticator factor is available.');
+      const { user, token } = await syncWithBackend(credential.user);
+
+      set({
+        user,
+        accessToken: token,
+        refreshToken: null,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+        twoFactorRequired: false,
+        tempToken: null,
+        pendingUser: null,
+      });
+
+      return true;
     }
 
-    const assertion = TotpMultiFactorGenerator.assertionForSignIn(
-      hint.uid,
-      otp
-    );
+    // In-App 2FA Verification
+    const res = await verifyLogin2FA(otp);
+    if (res.verified) {
+      const state = get();
+      const user = state.pendingUser as User;
+      const token = state.tempToken;
 
-    const credential = await resolver.resolveSignIn(assertion);
-    pendingMfaResolver = null;
+      set({
+        user: user || state.user,
+        accessToken: token || state.accessToken,
+        refreshToken: null,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+        twoFactorRequired: false,
+        tempToken: null,
+        pendingUser: null,
+      });
 
-    const { user, token } = await syncWithBackend(credential.user);
+      return true;
+    }
 
-    set({
-      user,
-      accessToken: token,
-      refreshToken: null,
-      isAuthenticated: true,
-      isLoading: false,
-      error: null,
-      twoFactorRequired: false,
-      tempToken: null,
-      pendingUser: null,
-    });
-
-    return true;
+    set({ isLoading: false, error: 'Invalid verification code.' });
+    return false;
   } catch (err: unknown) {
     const firebaseError = err as {
       code?: string;
@@ -704,12 +735,48 @@ verify2FA: async (code: string, isBackupCode = false) => {
     }
   },
 
-  uploadAvatar: async () => {
-    const message =
-      'Avatar uploads are not configured yet. No image was uploaded.';
+  uploadAvatar: async (dataUrlOrFile: string | File) => {
+    const firebaseUser = auth.currentUser;
 
-    set({ error: message, isLoading: false });
-    throw unsupportedFeature(message);
+    if (!firebaseUser) {
+      const message = 'Please sign in first.';
+      set({ error: message, isLoading: false });
+      throw new Error(message);
+    }
+
+    set({ isLoading: true, error: null });
+
+    try {
+      let avatarUrl = '';
+      if (typeof dataUrlOrFile === 'string') {
+        const res = await apiClient.patch<{ avatar_url: string }>('/profile', { avatar_url: dataUrlOrFile });
+        avatarUrl = res.data.avatar_url;
+      } else {
+        const formData = new FormData();
+        formData.append('file', dataUrlOrFile);
+        const res = await apiClient.post<{ avatar_url: string }>('/profile/avatar', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        avatarUrl = res.data.avatar_url;
+      }
+
+      await updateFirebaseProfile(firebaseUser, { photoURL: avatarUrl }).catch(() => undefined);
+
+      const currentUser = get().user;
+      if (currentUser) {
+        set({
+          user: { ...currentUser, avatarUrl },
+          isLoading: false,
+          error: null,
+        });
+      }
+
+      return avatarUrl;
+    } catch (err: any) {
+      const message = err?.response?.data?.detail || err?.message || 'Failed to upload avatar';
+      set({ error: message, isLoading: false });
+      throw new Error(message);
+    }
   },
 
   deleteAvatar: async () => {
@@ -724,9 +791,10 @@ verify2FA: async (code: string, isBackupCode = false) => {
     set({ isLoading: true, error: null });
 
     try {
+      await apiClient.delete('/profile/avatar').catch(() => undefined);
       await updateFirebaseProfile(firebaseUser, {
         photoURL: null,
-      });
+      }).catch(() => undefined);
 
       const currentUser = get().user;
 
@@ -742,7 +810,6 @@ verify2FA: async (code: string, isBackupCode = false) => {
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Failed to remove avatar.';
-
       set({ error: message, isLoading: false });
       throw err;
     }

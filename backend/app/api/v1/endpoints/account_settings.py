@@ -1,3 +1,4 @@
+import pyotp
 from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -326,9 +327,10 @@ def get_security_status(token: dict = Depends(verify_user)):
         ),
         "providers": provider_response(firebase_user),
 
-        # Actual Firebase-enrolled MFA factors, if any.
-        "two_factor_enabled": len(enrolled_factors) > 0,
-        "two_factor_supported_by_app": False,
+        # TOTP 2FA status (In-app RFC 6238 or Firebase MFA)
+        "two_factor_enabled": bool(security_settings.get("totp_enabled", False)) or len(enrolled_factors) > 0,
+        "two_factor_supported_by_app": True,
+        "app_totp_enabled": bool(security_settings.get("totp_enabled", False)),
 
         # Separate application email-verification setting.
         "email_verification_enabled": security_settings.get(
@@ -449,4 +451,132 @@ def disable_security_email_verification(
     return {
         "email_verification_enabled": False,
         "message": "Email verification setting disabled.",
+    }
+
+
+# -------------------------------------------------------------------
+# In-App RFC 6238 TOTP Two-Factor Authentication
+# -------------------------------------------------------------------
+
+class TotpSetupResponse(BaseModel):
+    secret: str
+    qr_code_url: str
+    account_name: str
+    issuer: str
+
+
+class TotpVerifyRequest(BaseModel):
+    code: str
+
+
+@router.post("/security/totp/setup", response_model=TotpSetupResponse)
+def setup_totp(token: dict = Depends(verify_user)):
+    uid = token["uid"]
+    email = token.get("email", "")
+    secret = pyotp.random_base32()
+    issuer = "BugPulse AI"
+    account_name = email or uid
+    totp = pyotp.TOTP(secret)
+    qr_code_url = totp.provisioning_uri(name=account_name, issuer_name=issuer)
+
+    security_ref = get_security_settings_ref(uid)
+    security_ref.set(
+        {
+            "pending_totp_secret": secret,
+            "pending_totp_created_at": datetime.now(timezone.utc).isoformat(),
+        },
+        merge=True,
+    )
+
+    return {
+        "secret": secret,
+        "qr_code_url": qr_code_url,
+        "account_name": account_name,
+        "issuer": issuer,
+    }
+
+
+@router.post("/security/totp/verify")
+def verify_totp(
+    payload: TotpVerifyRequest,
+    token: dict = Depends(verify_user),
+):
+    uid = token["uid"]
+    code = payload.code.strip().replace(" ", "")
+
+    if not code.isdigit() or len(code) != 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Enter a valid 6-digit code from your authenticator app.",
+        )
+
+    security_ref = get_security_settings_ref(uid)
+    snapshot = security_ref.get()
+    data = snapshot.to_dict() if snapshot.exists else {}
+    pending_secret = data.get("pending_totp_secret") or data.get("totp_secret")
+
+    if not pending_secret:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No TOTP setup in progress. Please click 'Set up authenticator' again.",
+        )
+
+    totp = pyotp.TOTP(pending_secret)
+    if not totp.verify(code, valid_window=1):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid verification code. Check your authenticator app clock and try again.",
+        )
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    security_ref.set(
+        {
+            "totp_enabled": True,
+            "totp_secret": pending_secret,
+            "pending_totp_secret": None,
+            "totp_enabled_at": now_iso,
+        },
+        merge=True,
+    )
+
+    # Also sync onto user doc
+    fs = require_firestore()
+    fs.collection("users").document(uid).set(
+        {"two_factor_enabled": True},
+        merge=True,
+    )
+
+    return {
+        "success": True,
+        "message": "Two-factor authentication successfully enabled.",
+        "two_factor_enabled": True,
+    }
+
+
+@router.delete("/security/totp")
+def disable_totp(token: dict = Depends(verify_user)):
+    uid = token["uid"]
+    security_ref = get_security_settings_ref(uid)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    security_ref.set(
+        {
+            "totp_enabled": False,
+            "totp_secret": None,
+            "pending_totp_secret": None,
+            "totp_disabled_at": now_iso,
+        },
+        merge=True,
+    )
+
+    fs = require_firestore()
+    fs.collection("users").document(uid).set(
+        {"two_factor_enabled": False},
+        merge=True,
+    )
+
+    return {
+        "success": True,
+        "message": "Two-factor authentication has been disabled.",
+        "two_factor_enabled": False,
     }

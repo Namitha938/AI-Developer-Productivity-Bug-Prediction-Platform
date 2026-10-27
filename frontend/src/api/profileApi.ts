@@ -1,4 +1,3 @@
-
 import { apiClient } from './client';
 
 export interface ProfileData {
@@ -6,6 +5,7 @@ export interface ProfileData {
   email: string;
   full_name: string;
   username: string;
+  avatar_url?: string;
   title: string;
   company: string;
   location: string;
@@ -33,6 +33,7 @@ export type ProfileUpdate = Partial<
     | 'timezone'
     | 'language'
     | 'social_links'
+    | 'avatar_url'
   >
 >;
 
@@ -48,6 +49,25 @@ export async function updateProfile(
     '/profile',
     updates,
   );
+  return response.data;
+}
 
+export async function uploadAvatar(file: File): Promise<{ avatar_url: string; message: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await apiClient.post<{ avatar_url: string; message: string }>(
+    '/profile/avatar',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+  return response.data;
+}
+
+export async function deleteAvatar(): Promise<{ message: string }> {
+  const response = await apiClient.delete<{ message: string }>('/profile/avatar');
   return response.data;
 }

@@ -13,3 +13,4 @@ class UserResponse(BaseModel):
     avatar_url: str = ""
     created_at: str | None = None
     role: str = "user"
+    two_factor_enabled: bool = False

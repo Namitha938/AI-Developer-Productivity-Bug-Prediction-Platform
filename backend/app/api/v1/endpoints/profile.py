@@ -1,3 +1,10 @@
+import base64
+import logging
+from uuid import uuid4
+import cloudinary
+import cloudinary.uploader
+from fastapi import File, UploadFile
+from app.core.config import settings
 
 from datetime import datetime, timezone
 from typing import Any
@@ -11,6 +18,7 @@ from app.core.firebase import db, firebase_app
 
 router = APIRouter(prefix="/profile", tags=["Profile"])
 bearer_scheme = HTTPBearer()
+logger = logging.getLogger(__name__)
 
 PROFILE_FIELDS = {
     "full_name",
@@ -21,6 +29,7 @@ PROFILE_FIELDS = {
     "timezone",
     "language",
     "social_links",
+    "avatar_url",
 }
 
 
@@ -35,6 +44,7 @@ class ProfileUpdate(BaseModel):
     timezone: str | None = Field(default=None, max_length=100)
     language: str | None = Field(default=None, max_length=50)
     social_links: dict[str, str] | None = None
+    avatar_url: str | None = None
 
 
 def get_authenticated_uid(
@@ -69,10 +79,26 @@ def get_profile_document(uid: str):
     snapshot = user_ref.get()
 
     if not snapshot.exists:
-        raise HTTPException(
-            status_code=404,
-            detail="User profile not found. Sign in again to initialize your profile.",
-        )
+        try:
+            fb_user = auth.get_user(uid, app=firebase_app)
+            new_data = {
+                "email": fb_user.email or "",
+                "full_name": fb_user.display_name or (fb_user.email.split("@")[0] if fb_user.email else "Developer"),
+                "username": (fb_user.email.split("@")[0] if fb_user.email else "user"),
+                "avatar_url": fb_user.photo_url or "",
+                "title": "Developer",
+                "is_active": True,
+                "role": "user",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            user_ref.set(new_data)
+            return user_ref, new_data
+        except Exception:
+            raise HTTPException(
+                status_code=404,
+                detail="User profile not found. Sign in again to initialize your profile.",
+            )
 
     return user_ref, snapshot.to_dict() or {}
 
@@ -151,3 +177,67 @@ def update_profile(
 
     updated = user_ref.get().to_dict() or {}
     return profile_response(uid, updated)
+
+
+@router.post("/avatar")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    uid: str = Depends(get_authenticated_uid),
+):
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+
+    contents = await file.read(5 * 1024 * 1024 + 1)
+    if not contents:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Avatar image must be under 5 MB")
+
+    avatar_url = None
+
+    # Try Cloudinary if credentials are configured
+    if settings.CLOUDINARY_CLOUD_NAME and settings.CLOUDINARY_API_KEY and settings.CLOUDINARY_API_SECRET:
+        try:
+            cloudinary.config(
+                cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+                api_key=settings.CLOUDINARY_API_KEY,
+                api_secret=settings.CLOUDINARY_API_SECRET,
+                secure=True,
+            )
+            result = cloudinary.uploader.upload(
+                contents,
+                folder=f"bugpulse/avatars/{uid}",
+                public_id=f"avatar_{uuid4().hex[:8]}",
+                transformation=[
+                    {"width": 400, "height": 400, "crop": "fill", "gravity": "face"}
+                ],
+                resource_type="image",
+            )
+            avatar_url = result.get("secure_url")
+        except Exception as exc:
+            logger.warning("Cloudinary upload failed, falling back to data URL: %s", exc)
+
+    # Robust fallback: data URL so avatar upload always works even without external storage
+    if not avatar_url:
+        content_type = file.content_type or "image/png"
+        b64_str = base64.b64encode(contents).decode("utf-8")
+        avatar_url = f"data:{content_type};base64,{b64_str}"
+
+    user_ref, data = get_profile_document(uid)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    user_ref.update({"avatar_url": avatar_url, "updated_at": now_iso})
+
+    return {
+        "avatar_url": avatar_url,
+        "message": "Avatar uploaded successfully",
+    }
+
+
+@router.delete("/avatar")
+def delete_avatar(uid: str = Depends(get_authenticated_uid)):
+    user_ref, data = get_profile_document(uid)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    user_ref.update({"avatar_url": "", "updated_at": now_iso})
+
+    return {"message": "Avatar removed successfully"}

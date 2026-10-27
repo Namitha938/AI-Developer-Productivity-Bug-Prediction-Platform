@@ -13,6 +13,13 @@ def initialize_firebase():
         return firebase_admin.get_app()
     except ValueError:
         path = settings.FIREBASE_SERVICE_ACCOUNT_PATH
+        if path and not os.path.isabs(path):
+            backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+            clean_path = path.replace("\\", "/").lstrip("./")
+            cand = os.path.join(backend_dir, clean_path)
+            if os.path.exists(cand):
+                path = cand
+
         if path and os.path.exists(path):
             try:
                 credential = credentials.Certificate(path)

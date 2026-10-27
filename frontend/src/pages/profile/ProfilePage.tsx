@@ -11,10 +11,24 @@ import {
   RefreshCw,
   LockKeyhole,
   Loader2,
+  Building,
+  MapPin,
+  Globe,
+  Github,
+  Linkedin,
+  Twitter,
+  User as UserIcon,
+  FileText,
+  KeyRound,
+  Camera,
+  Upload,
+  Trash2,
 } from 'lucide-react';
 import {
   getProfile,
   updateProfile as saveProfileToBackend,
+  uploadAvatar,
+  deleteAvatar,
   type ProfileData,
 } from '../../api/profileApi';
 import {
@@ -32,6 +46,7 @@ import {
 } from '../../api/accountSettingsApi';
 import { ConnectedAccounts } from '@/components/profile/ConnectedAccounts';
 import { ChangePassword } from '../../components/settings/ChangePassword';
+import { TotpMfaSettings } from '../../components/settings/TotpMfaSettings';
 
 type ProfileTab = 'profile' | 'security' | 'connected' | 'preferences';
 
@@ -85,10 +100,26 @@ export const ProfilePage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  // Profile Fields
   const [fullName, setFullName] = useState(user?.name ?? '');
   const [emailAddress, setEmailAddress] = useState(user?.email ?? '');
   const [role, setRole] = useState(user?.title ?? '');
+  const [company, setCompany] = useState('');
+  const [userLocation, setUserLocation] = useState('');
+  const [bio, setBio] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl ?? '');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarSuccess, setAvatarSuccess] = useState('');
+  const [avatarError, setAvatarError] = useState('');
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
+  // Social Links
+  const [github, setGithub] = useState('');
+  const [linkedin, setLinkedin] = useState('');
+  const [twitter, setTwitter] = useState('');
+  const [website, setWebsite] = useState('');
+
+  // Preferences
   const [timezone, setTimezone] = useState('Asia/Kolkata');
   const [language, setLanguage] = useState('English (US)');
   const [notifications, setNotifications] =
@@ -99,6 +130,7 @@ export const ProfilePage: React.FC = () => {
   const [preferencesLoading, setPreferencesLoading] = useState(true);
   const [preferencesError, setPreferencesError] = useState('');
 
+  // Security Status
   const [securityStatus, setSecurityStatus] =
     useState<SecurityStatusResponse | null>(null);
   const [connectedAccounts, setConnectedAccounts] =
@@ -114,17 +146,21 @@ export const ProfilePage: React.FC = () => {
   const [verificationMessage, setVerificationMessage] = useState('');
   const [resendSeconds, setResendSeconds] = useState(0);
 
-  const initials =
-    fullName
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part.charAt(0).toUpperCase())
-      .join('') || '?';
+  const initials = (fullName || user?.name || 'User')
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('') || 'U';
+
+  const statusPill = (label: string) => (
+    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+      {label}
+    </span>
+  );
 
   const loadSecurityData = useCallback(async () => {
-    if (!user) {
+    if (!user?.id) {
       setSecurityStatus(null);
       setConnectedAccounts(null);
       setSecurityError('');
@@ -176,6 +212,13 @@ export const ProfilePage: React.FC = () => {
           setFullName(data.full_name || user.name || '');
           setEmailAddress(data.email || user.email || '');
           setRole(data.title || user.title || '');
+          setCompany(data.company || '');
+          setUserLocation(data.location || '');
+          setBio(data.bio || '');
+          setGithub(data.social_links?.github || '');
+          setLinkedin(data.social_links?.linkedin || '');
+          setTwitter(data.social_links?.twitter || '');
+          setWebsite(data.social_links?.website || '');
         })
         .catch((error: unknown) => {
           if (cancelled) return;
@@ -206,14 +249,14 @@ export const ProfilePage: React.FC = () => {
 
           console.error('Failed to load account preferences:', error);
           setPreferencesError(
-            'Could not load saved preferences. Check the account-settings endpoint and try again.',
+            'Could not load saved preferences. Falling back to platform defaults.',
           );
         })
         .finally(() => {
           if (!cancelled) setPreferencesLoading(false);
         });
 
-      await Promise.all([profileRequest, preferencesRequest]);
+      await Promise.allSettled([profileRequest, preferencesRequest]);
     };
 
     void loadData();
@@ -221,84 +264,45 @@ export const ProfilePage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, user?.name, user?.email, user?.title]);
+  }, [user]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      if (!user) {
-        setSecurityStatus(null);
-        setConnectedAccounts(null);
-        setSecurityError('');
-        setSecurityLoading(false);
-        return;
-      }
-
-      setSecurityLoading(true);
-      setSecurityError('');
-
-      try {
-        const [security, accounts] = await Promise.all([
-          getSecurityStatus(),
-          getConnectedAccounts(),
-        ]);
-
-        if (cancelled) return;
-
-        setSecurityStatus(security);
-        setConnectedAccounts(accounts);
-      } catch (error) {
-        if (cancelled) return;
-
-        console.error('Failed to load security settings:', error);
-        setSecurityError(
-          'Could not load account security information. Check the backend endpoints and your Firebase session.',
-        );
-      } finally {
-        if (!cancelled) setSecurityLoading(false);
-      }
-    };
-
-    void load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
+    if (activeTab === 'security' || activeTab === 'connected') {
+      void loadSecurityData();
+    }
+  }, [activeTab, loadSecurityData]);
 
   useEffect(() => {
     if (resendSeconds <= 0) return;
 
-    const timeout = window.setTimeout(() => {
-      setResendSeconds((seconds) => Math.max(0, seconds - 1));
+    const timer = setInterval(() => {
+      setResendSeconds((seconds) => (seconds > 0 ? seconds - 1 : 0));
     }, 1000);
 
-    return () => window.clearTimeout(timeout);
+    return () => clearInterval(timer);
   }, [resendSeconds]);
 
   const handleRequestCode = async () => {
+    setVerificationBusy(true);
     setVerificationError('');
     setVerificationMessage('');
-    setVerificationBusy(true);
 
     try {
       const response = await sendEmailVerificationCode();
-
       setCodeRequested(true);
       setVerificationCode('');
       setResendSeconds(RESEND_COOLDOWN_SECONDS);
       setVerificationMessage(
-        response.message || 'A verification code has been sent to your email.',
+        response.message ||
+          'Verification code sent. Check your email inbox and spam folder.',
       );
     } catch (error: any) {
-      console.error('Failed to send email verification code:', error);
-
+      console.error('Failed to send verification code:', error);
       const detail = error?.response?.data?.detail;
       setVerificationError(
         typeof detail === 'string'
           ? detail
-          : 'Could not send the verification code. Please try again later.',
+          : 'Could not send verification code. Try again later.',
       );
     } finally {
       setVerificationBusy(false);
@@ -307,35 +311,35 @@ export const ProfilePage: React.FC = () => {
 
   const handleVerifyCode = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    if (!/^\d{6}$/.test(verificationCode)) {
-      setVerificationError('Enter the six-digit code from your email.');
-      return;
-    }
-
     setVerificationBusy(true);
     setVerificationError('');
     setVerificationMessage('');
 
-    try {
-      const response = await verifyEmailVerificationCode(verificationCode);
+    const trimmed = verificationCode.trim();
 
+    if (trimmed.length !== 6) {
+      setVerificationError('Enter the complete six-digit verification code.');
+      setVerificationBusy(false);
+      return;
+    }
+
+    try {
+      const response = await verifyEmailVerificationCode(trimmed);
       setVerificationMessage(
-        response.message || 'Email verification setting enabled.',
+        response.message ||
+          'Email verification confirmed. Setting is now enabled.',
       );
       setVerificationCode('');
       setCodeRequested(false);
       setResendSeconds(0);
-
       await loadSecurityData();
     } catch (error: any) {
-      console.error('Failed to verify email code:', error);
-
+      console.error('Failed to verify code:', error);
       const detail = error?.response?.data?.detail;
       setVerificationError(
         typeof detail === 'string'
           ? detail
-          : 'The code could not be verified. Check the code and try again.',
+          : 'Invalid or expired code. Please request a new one.',
       );
     } finally {
       setVerificationBusy(false);
@@ -375,6 +379,60 @@ export const ProfilePage: React.FC = () => {
       );
     } finally {
       setVerificationBusy(false);
+    }
+  };
+
+  const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Please select a valid image file (PNG, JPG, WebP).');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError('Profile picture must be under 5 MB.');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    setAvatarError('');
+    setAvatarSuccess('');
+
+    try {
+      const res = await uploadAvatar(file);
+      setAvatarUrl(res.avatar_url);
+      setAvatarSuccess('Profile photo updated successfully!');
+      if (user) {
+        useAuthStore.setState({ user: { ...user, avatarUrl: res.avatar_url } });
+      }
+    } catch (err: any) {
+      console.error('Avatar upload failed:', err);
+      const detail = err?.response?.data?.detail || 'Failed to upload photo.';
+      setAvatarError(detail);
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setUploadingAvatar(true);
+    setAvatarError('');
+    setAvatarSuccess('');
+
+    try {
+      await deleteAvatar();
+      setAvatarUrl('');
+      setAvatarSuccess('Profile photo removed.');
+      if (user) {
+        useAuthStore.setState({ user: { ...user, avatarUrl: '' } });
+      }
+    } catch (err: any) {
+      setAvatarError('Failed to remove photo.');
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -418,16 +476,30 @@ export const ProfilePage: React.FC = () => {
       const updated = await saveProfileToBackend({
         full_name: fullName.trim(),
         title: role.trim(),
+        company: company.trim(),
+        location: userLocation.trim(),
+        bio: bio.trim(),
         timezone,
         language,
+        social_links: {
+          github: github.trim(),
+          linkedin: linkedin.trim(),
+          twitter: twitter.trim(),
+          website: website.trim(),
+        },
       });
 
-      await updateProfile({ name: fullName.trim() });
+      await updateProfile({
+        name: fullName.trim(),
+      });
 
       setProfile(updated);
       setFullName(updated.full_name || fullName.trim());
       setEmailAddress(updated.email || emailAddress);
       setRole(updated.title || '');
+      setCompany(updated.company || '');
+      setUserLocation(updated.location || '');
+      setBio(updated.bio || '');
       setSavedSuccess(true);
     } catch (error) {
       console.error('Failed to save settings:', error);
@@ -448,56 +520,70 @@ export const ProfilePage: React.FC = () => {
     setSavedSuccess(false);
 
     if (activeTab === 'preferences') {
-      setTimezone(savedPreferences?.timezone || 'Asia/Kolkata');
-      setLanguage(savedPreferences?.language || 'English (US)');
-      setNotifications({
-        ...DEFAULT_NOTIFICATIONS,
-        ...(savedPreferences?.notifications || {}),
-      });
+      if (savedPreferences) {
+        setTimezone(savedPreferences.timezone);
+        setLanguage(savedPreferences.language);
+        setNotifications({
+          ...DEFAULT_NOTIFICATIONS,
+          ...savedPreferences.notifications,
+        });
+      }
       return;
     }
 
-    setFullName(profile?.full_name || user?.name || '');
-    setEmailAddress(profile?.email || user?.email || '');
-    setRole(profile?.title || user?.title || '');
+    if (profile) {
+      setFullName(profile.full_name || user?.name || '');
+      setEmailAddress(profile.email || user?.email || '');
+      setRole(profile.title || user?.title || '');
+      setCompany(profile.company || '');
+      setUserLocation(profile.location || '');
+      setBio(profile.bio || '');
+      setGithub(profile.social_links?.github || '');
+      setLinkedin(profile.social_links?.linkedin || '');
+      setTwitter(profile.social_links?.twitter || '');
+      setWebsite(profile.social_links?.website || '');
+      setAvatarUrl(user?.avatarUrl || '');
+    }
   };
 
-  const statusPill = (label: string) => (
-    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50">
-      {label}
-    </span>
+  const emailVerificationEnabled = Boolean(
+    securityStatus?.email_verification_enabled,
   );
-
-  const notImplementedNotice = (
-    <div className="p-3 rounded-lg bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/40 flex items-start gap-2.5">
-      <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-      <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
-        This feature is not available yet. No unsupported security or session
-        action has been performed.
-      </p>
-    </div>
-  );
-
-  const emailVerificationEnabled =
-    securityStatus?.email_verification_enabled ?? false;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 font-sans">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-          Profile settings
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Manage your profile details, preferences, and account security.
-        </p>
-      </div>
+    <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+      {/* Header */}
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+              Account Settings & Security
+            </h1>
+            <p className="text-xs text-slate-500 mt-1">
+              Manage your personal developer profile, two-factor authentication, and account preferences.
+            </p>
+          </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 gap-4">
-        <div className="flex items-center gap-5 sm:gap-6 text-xs font-semibold flex-wrap">
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                securityStatus?.two_factor_enabled
+                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                  : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+              }`}
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              2FA: {securityStatus?.two_factor_enabled ? 'Active' : 'Not Configured'}
+            </span>
+          </div>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-6 mt-6 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold">
           {(
             [
               ['profile', 'Profile'],
-              ['security', 'Security'],
+              ['security', 'Security & 2FA'],
               ['connected', 'Connected accounts'],
               ['preferences', 'Preferences'],
             ] as [ProfileTab, string][]
@@ -522,33 +608,33 @@ export const ProfilePage: React.FC = () => {
           ))}
         </div>
 
-        <div className="text-[11px] text-slate-400 pb-3">
+        <div className="text-[11px] text-slate-400 pt-3 flex items-center justify-between">
           <span>
             Active section:{' '}
             <strong className="text-slate-700 dark:text-slate-200 capitalize">
-              {activeTab}
+              {activeTab === 'security' ? 'Security & 2FA' : activeTab}
             </strong>
           </span>
           {profile?.updated_at && (
-            <span className="ml-3">
-              Updated {formatDate(profile.updated_at)}
+            <span>
+              Last updated: {formatDate(profile.updated_at)}
             </span>
           )}
         </div>
       </div>
 
-      {profileLoading ? (
-        <div className={`${cardClass} items-center py-12`}>
-          <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+      {profileLoading && activeTab === 'profile' ? (
+        <div className={`${cardClass} items-center py-12 text-center`}>
+          <Loader2 className="w-6 h-6 text-blue-600 animate-spin mx-auto" />
           <p className={mutedTextClass}>Loading your profile…</p>
         </div>
-      ) : profileError ? (
+      ) : profileError && activeTab === 'profile' ? (
         <div className={cardClass}>
           <div className="flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
             <div className="space-y-2">
               <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-                Profile unavailable
+                Profile temporarily unavailable
               </h2>
               <p className={mutedTextClass}>{profileError}</p>
               {user && (
@@ -567,57 +653,141 @@ export const ProfilePage: React.FC = () => {
         <form onSubmit={handleSave} className="space-y-6">
           {activeTab === 'profile' ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              {/* Left Column: Personal Information & Bio */}
               <div className="space-y-6">
+                {/* Profile Summary Card */}
                 <div className={cardClass}>
                   <div className="flex items-center justify-between text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
                     <span className="text-slate-900 dark:text-white">
-                      Profile summary
+                      Profile Overview
                     </span>
                     <span className="text-[11px] text-slate-400 font-normal">
-                      Account details
+                      Public Identity
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-base shrink-0">
-                        {initials}
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-white break-words">
-                          {fullName || 'Your name'}
-                        </h3>
-                        <p className="text-xs text-slate-500 break-all">
-                          {emailAddress || 'No email available'}
-                        </p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          {role || 'No role specified'}
-                        </p>
-                      </div>
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                    <div className="relative group">
+                      {avatarUrl ? (
+                        <img
+                          src={avatarUrl}
+                          alt={fullName}
+                          className="w-16 h-16 rounded-full object-cover border-2 border-slate-200 dark:border-slate-700 shadow-sm"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-xl border-2 border-slate-200 dark:border-slate-800 shadow-sm shrink-0">
+                          {initials}
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingAvatar}
+                        title="Upload photo"
+                        className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-transform hover:scale-110 cursor-pointer disabled:opacity-50"
+                      >
+                        {uploadingAvatar ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Camera className="w-3.5 h-3.5" />
+                        )}
+                      </button>
                     </div>
 
-                    {user?.emailVerified && (
-                      <span className="px-2 py-1 rounded-md text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 shrink-0">
-                        Email verified
-                      </span>
-                    )}
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-white break-words">
+                            {fullName || 'Your Name'}
+                          </h3>
+                          <p className="text-xs text-slate-500 break-all font-mono">
+                            {emailAddress || 'No email registered'}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="file"
+                            ref={fileInputRef}
+                            accept="image/png,image/jpeg,image/webp,image/gif"
+                            onChange={handleAvatarChange}
+                            className="hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploadingAvatar}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            {uploadingAvatar ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Upload className="w-3.5 h-3.5" />
+                            )}
+                            {uploadingAvatar ? 'Uploading…' : 'Upload Photo'}
+                          </button>
+
+                          {avatarUrl && (
+                            <button
+                              type="button"
+                              onClick={handleRemoveAvatar}
+                              disabled={uploadingAvatar}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-rose-200 dark:border-rose-900/50 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+                          {role || 'Developer'}
+                        </span>
+                        {user?.emailVerified && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                            Verified
+                          </span>
+                        )}
+                        <span className="text-[10px] text-slate-400">
+                          JPG, PNG, or WebP up to 5 MB
+                        </span>
+                      </div>
+
+                      {avatarSuccess && (
+                        <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                          <span>{avatarSuccess}</span>
+                        </div>
+                      )}
+
+                      {avatarError && (
+                        <div className="flex items-center gap-1.5 text-xs text-rose-600 dark:text-rose-400">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{avatarError}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
+                {/* Personal Information Form */}
                 <div className={cardClass}>
                   <div className="flex items-center justify-between text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
                     <span className="text-slate-900 dark:text-white">
-                      Personal information
+                      Personal Details
                     </span>
                     <span className="text-[11px] text-slate-400 font-normal">
-                      Editable details
+                      Editable Details
                     </span>
                   </div>
 
                   <div className="space-y-3.5">
                     <div className="space-y-1">
                       <label htmlFor="profile-full-name" className="block text-xs font-medium text-slate-600 dark:text-slate-300">
-                        Full name
+                        Full Name *
                       </label>
                       <input
                         id="profile-full-name"
@@ -635,29 +805,13 @@ export const ProfilePage: React.FC = () => {
                     </div>
 
                     <div className="space-y-1">
-                      <label htmlFor="profile-email" className="block text-xs font-medium text-slate-600 dark:text-slate-300">
-                        Email address
-                      </label>
-                      <input
-                        id="profile-email"
-                        type="email"
-                        autoComplete="email"
-                        value={emailAddress}
-                        readOnly
-                        className={`${inputClass} opacity-70 cursor-not-allowed`}
-                      />
-                      <p className="text-[10px] text-slate-400">
-                        Email changes require a separate Firebase verification flow.
-                      </p>
-                    </div>
-
-                    <div className="space-y-1">
                       <label htmlFor="profile-role" className="block text-xs font-medium text-slate-600 dark:text-slate-300">
-                        Role
+                        Professional Title / Role
                       </label>
                       <input
                         id="profile-role"
                         type="text"
+                        placeholder="e.g. Senior Software Engineer"
                         maxLength={120}
                         value={role}
                         onChange={(event) => {
@@ -667,52 +821,190 @@ export const ProfilePage: React.FC = () => {
                         className={inputClass}
                       />
                     </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label htmlFor="profile-company" className="block text-xs font-medium text-slate-600 dark:text-slate-300">
+                          Company / Organization
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="profile-company"
+                            type="text"
+                            placeholder="Acme Corp"
+                            maxLength={150}
+                            value={company}
+                            onChange={(event) => {
+                              setCompany(event.target.value);
+                              setSavedSuccess(false);
+                            }}
+                            className={inputClass}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label htmlFor="profile-location" className="block text-xs font-medium text-slate-600 dark:text-slate-300">
+                          Location
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="profile-location"
+                            type="text"
+                            placeholder="San Francisco, CA"
+                            maxLength={150}
+                            value={userLocation}
+                            onChange={(event) => {
+                              setUserLocation(event.target.value);
+                              setSavedSuccess(false);
+                            }}
+                            className={inputClass}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label htmlFor="profile-bio" className="block text-xs font-medium text-slate-600 dark:text-slate-300">
+                        Bio / About Developer
+                      </label>
+                      <textarea
+                        id="profile-bio"
+                        rows={3}
+                        maxLength={1000}
+                        placeholder="Tell colleagues about your experience, expertise, and coding interests..."
+                        value={bio}
+                        onChange={(event) => {
+                          setBio(event.target.value);
+                          setSavedSuccess(false);
+                        }}
+                        className={`${inputClass} resize-none`}
+                      />
+                      <span className="text-[10px] text-slate-400 block text-right">
+                        {bio.length}/1000 characters
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
 
+              {/* Right Column: Social Links & Account Info */}
               <div className="space-y-6">
+                {/* Social & Developer Links */}
                 <div className={cardClass}>
                   <div className="text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white">
-                    Account information
+                    Social & Developer Profiles
                   </div>
+
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className={mutedTextClass}>Username</span>
-                      <span className="text-xs text-slate-900 dark:text-white break-all">
-                        {profile?.username || user?.username || 'Not set'}
-                      </span>
+                    <div className="space-y-1">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                        <Github className="w-3.5 h-3.5" />
+                        GitHub
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="username or profile link"
+                        value={github}
+                        onChange={(e) => {
+                          setGithub(e.target.value);
+                          setSavedSuccess(false);
+                        }}
+                        className={inputClass}
+                      />
                     </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className={mutedTextClass}>Email verification</span>
-                      <span className="text-xs text-slate-900 dark:text-white">
-                        {user?.emailVerified ? 'Verified' : 'Not verified'}
-                      </span>
+
+                    <div className="space-y-1">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                        <Linkedin className="w-3.5 h-3.5" />
+                        LinkedIn
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="https://linkedin.com/in/username"
+                        value={linkedin}
+                        onChange={(e) => {
+                          setLinkedin(e.target.value);
+                          setSavedSuccess(false);
+                        }}
+                        className={inputClass}
+                      />
                     </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className={mutedTextClass}>Account ID</span>
-                      <span className="text-[10px] text-slate-500 break-all text-right max-w-[65%]">
-                        {user?.id || 'Unavailable'}
-                      </span>
+
+                    <div className="space-y-1">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                        <Twitter className="w-3.5 h-3.5" />
+                        Twitter / X
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="@username"
+                        value={twitter}
+                        onChange={(e) => {
+                          setTwitter(e.target.value);
+                          setSavedSuccess(false);
+                        }}
+                        className={inputClass}
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                        <Globe className="w-3.5 h-3.5" />
+                        Personal Portfolio / Website
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://yourwebsite.dev"
+                        value={website}
+                        onChange={(e) => {
+                          setWebsite(e.target.value);
+                          setSavedSuccess(false);
+                        }}
+                        className={inputClass}
+                      />
                     </div>
                   </div>
                 </div>
 
+                {/* Account Details & Security Shortcut */}
                 <div className={cardClass}>
                   <div className="text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white">
-                    Account security
+                    Account Security & 2FA Status
                   </div>
-                  <p className={mutedTextClass}>
-                    Review your password recovery options and account security status.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('security')}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    Review security settings
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </button>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={mutedTextClass}>Account Email</span>
+                      <span className="text-xs text-slate-900 dark:text-white break-all font-mono">
+                        {emailAddress}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={mutedTextClass}>Two-Factor Authentication</span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                          securityStatus?.two_factor_enabled
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                            : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                        }`}
+                      >
+                        {securityStatus?.two_factor_enabled ? 'Enrolled' : 'Not Configured'}
+                      </span>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('security')}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        <KeyRound className="w-3.5 h-3.5" />
+                        Configure 2FA & Security Credentials
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -720,58 +1012,58 @@ export const ProfilePage: React.FC = () => {
             <div className="max-w-2xl space-y-6">
               <div className={cardClass}>
                 <div className="text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white">
-                  Regional preferences
+                  Regional Preferences
                 </div>
 
-                <div className="space-y-1">
-                  <label htmlFor="profile-timezone" className="block text-xs font-medium text-slate-600 dark:text-slate-300">
-                    Timezone
-                  </label>
-                  <select
-                    id="profile-timezone"
-                    value={timezone}
-                    onChange={(event) => {
-                      setTimezone(event.target.value);
-                      setSavedSuccess(false);
-                    }}
-                    className={inputClass}
-                    disabled={preferencesLoading}
-                  >
-                    <option value="Asia/Kolkata">India Standard Time (Asia/Kolkata)</option>
-                    <option value="America/Los_Angeles">Pacific Time (America/Los_Angeles)</option>
-                    <option value="America/New_York">Eastern Time (America/New_York)</option>
-                    <option value="UTC">UTC</option>
-                  </select>
-                </div>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label htmlFor="profile-timezone" className="block text-xs font-medium text-slate-600 dark:text-slate-300">
+                      Timezone
+                    </label>
+                    <select
+                      id="profile-timezone"
+                      value={timezone}
+                      onChange={(event) => {
+                        setTimezone(event.target.value);
+                        setSavedSuccess(false);
+                      }}
+                      className={inputClass}
+                      disabled={preferencesLoading}
+                    >
+                      <option value="Asia/Kolkata">India Standard Time (Asia/Kolkata)</option>
+                      <option value="America/Los_Angeles">Pacific Time (America/Los_Angeles)</option>
+                      <option value="America/New_York">Eastern Time (America/New_York)</option>
+                      <option value="Europe/London">London (GMT / BST)</option>
+                      <option value="UTC">UTC</option>
+                    </select>
+                  </div>
 
-                <div className="space-y-1">
-                  <label htmlFor="profile-language" className="block text-xs font-medium text-slate-600 dark:text-slate-300">
-                    Language
-                  </label>
-                  <select
-                    id="profile-language"
-                    value={language}
-                    onChange={(event) => {
-                      setLanguage(event.target.value);
-                      setSavedSuccess(false);
-                    }}
-                    className={inputClass}
-                    disabled={preferencesLoading}
-                  >
-                    <option value="English (US)">English (US)</option>
-                    <option value="English (UK)">English (UK)</option>
-                    <option value="German">German</option>
-                    <option value="French">French</option>
-                  </select>
-                  <p className="text-[10px] text-slate-400">
-                    Language is saved as a preference; full application translation is not implemented yet.
-                  </p>
+                  <div className="space-y-1">
+                    <label htmlFor="profile-language" className="block text-xs font-medium text-slate-600 dark:text-slate-300">
+                      Language
+                    </label>
+                    <select
+                      id="profile-language"
+                      value={language}
+                      onChange={(event) => {
+                        setLanguage(event.target.value);
+                        setSavedSuccess(false);
+                      }}
+                      className={inputClass}
+                      disabled={preferencesLoading}
+                    >
+                      <option value="English (US)">English (US)</option>
+                      <option value="English (UK)">English (UK)</option>
+                      <option value="German">German</option>
+                      <option value="French">French</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
               <div className={cardClass}>
                 <div className="text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white">
-                  Notifications
+                  Notification Settings
                 </div>
 
                 {preferencesLoading ? (
@@ -780,10 +1072,10 @@ export const ProfilePage: React.FC = () => {
                   <div className="space-y-4">
                     {(
                       [
-                        ['email', 'Email notifications', 'Receive updates by email.'],
-                        ['in_app', 'In-app notifications', 'Show notifications inside BugPulse AI.'],
-                        ['security_alerts', 'Security alerts', 'Receive important account-security notifications.'],
-                        ['weekly_report', 'Weekly report', 'Receive a weekly developer productivity summary.'],
+                        ['email', 'Email Notifications', 'Receive sprint reports, bug intercept digests, and issue updates.'],
+                        ['in_app', 'In-App Alerts', 'Show popup notifications inside BugPulse AI.'],
+                        ['security_alerts', 'Security Alerts', 'Receive critical alerts for login attempts and 2FA changes.'],
+                        ['weekly_report', 'Weekly Productivity Summary', 'Receive automated developer velocity summaries.'],
                       ] as const
                     ).map(([key, label, description]) => (
                       <label key={key} className="flex items-start justify-between gap-4 cursor-pointer">
@@ -808,13 +1100,6 @@ export const ProfilePage: React.FC = () => {
                   </div>
                 )}
               </div>
-
-              {preferencesError && (
-                <div role="alert" className="flex items-start gap-2 p-3 rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200 text-xs">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{preferencesError}</span>
-                </div>
-              )}
             </div>
           )}
 
@@ -834,19 +1119,19 @@ export const ProfilePage: React.FC = () => {
                 </span>
               ) : (
                 activeTab === 'preferences'
-                  ? 'Save your preferences to update your account settings.'
-                  : 'Save your changes to update your account profile.'
+                  ? 'Save your preferences to update your regional and notification settings.'
+                  : 'Save your profile changes to update your developer identity.'
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={handleCancel}
-                disabled={isSaving || profileLoading || (activeTab === 'preferences' && preferencesLoading)}
+                disabled={isSaving || profileLoading}
                 className={secondaryButtonClass}
               >
-                Cancel
+                Reset
               </button>
 
               <button
@@ -854,6 +1139,7 @@ export const ProfilePage: React.FC = () => {
                 disabled={isSaving || profileLoading || (activeTab === 'preferences' && preferencesLoading)}
                 className={primaryButtonClass}
               >
+                {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 {isSaving ? 'Saving…' : activeTab === 'preferences' ? 'Save preferences' : 'Save changes'}
               </button>
             </div>
@@ -862,7 +1148,7 @@ export const ProfilePage: React.FC = () => {
       ) : activeTab === 'connected' ? (
         <div className={cardClass}>
           <div className="flex items-center justify-between gap-3 text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
-            <span className="text-slate-900 dark:text-white">Connected accounts</span>
+            <span className="text-slate-900 dark:text-white">Connected Accounts</span>
             <button
               type="button"
               onClick={() => void loadSecurityData()}
@@ -885,14 +1171,14 @@ export const ProfilePage: React.FC = () => {
           ) : connectedAccounts ? (
             <>
               <p className={mutedTextClass}>
-                Provider information is loaded from your authenticated backend. Linking and unlinking actions use Firebase Authentication.
+                Link external OAuth providers to sign into BugPulse AI with one click.
               </p>
               <ConnectedAccounts />
               <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                Backend-reported providers:{' '}
+                Connected OAuth Providers:{' '}
                 {connectedAccounts.providers.length
                   ? connectedAccounts.providers.map((provider) => provider.provider_id).join(', ')
-                  : 'None reported'}
+                  : 'None currently linked'}
               </div>
             </>
           ) : (
@@ -902,6 +1188,7 @@ export const ProfilePage: React.FC = () => {
           )}
         </div>
       ) : (
+        /* Security & 2FA Tab */
         <div className="space-y-6">
           {securityError && (
             <div role="alert" className="p-3 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-300 text-xs">
@@ -909,286 +1196,265 @@ export const ProfilePage: React.FC = () => {
             </div>
           )}
 
-          {securityLoading && !securityStatus ? (
-            <div className={cardClass}>
-              <p className={mutedTextClass}>Loading account security…</p>
-            </div>
-          ) : securityStatus ? (
-            <>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                <div className="space-y-6">
-                  <div className={cardClass}>
-                    <div className="flex items-center justify-between gap-3 text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <span className="text-slate-900 dark:text-white">
-                        Password management
-                      </span>
-                      {statusPill('Firebase authentication')}
-                    </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            {/* Column 1: Two-Factor Authentication (TOTP App) & Password Management */}
+            <div className="space-y-6">
+              {/* TOTP 2FA Section */}
+              <TotpMfaSettings />
 
-                    <p className={mutedTextClass}>
-                      Change your password while signed in, or request a secure password-reset link if you have forgotten it.
-                    </p>
-
-                    <ChangePassword />
-
-                    <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
-                      <Link
-                        to="/forgot-password"
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
-                      >
-                        <Mail className="h-3.5 w-3.5" />
-                        Forgot your password? Reset by email
-                      </Link>
-                    </div>
-                  </div>
-
-                  <div className={cardClass}>
-                    <div className="flex items-center justify-between text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <span className="text-slate-900 dark:text-white">Verified account status</span>
-                      {securityStatus.email_verified ? (
-                        <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Verified</span>
-                      ) : statusPill('Not verified')}
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className={mutedTextClass}>Account email</span>
-                      <span className="text-xs text-slate-900 dark:text-white break-all">{securityStatus.email || 'Unavailable'}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className={mutedTextClass}>Account created</span>
-                      <span className="text-xs text-slate-900 dark:text-white">{formatDate(securityStatus.created_at)}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className={mutedTextClass}>Last sign-in</span>
-                      <span className="text-xs text-slate-900 dark:text-white">{formatDate(securityStatus.last_sign_in_at)}</span>
-                    </div>
-                  </div>
-
-                  <div className={cardClass}>
-                    <div className="flex items-center justify-between text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <span className="text-slate-900 dark:text-white">Linked sign-in providers</span>
-                      {statusPill(`${securityStatus.providers.length} provider(s)`)}
-                    </div>
-                    {securityStatus.providers.length ? (
-                      <div className="space-y-3">
-                        {securityStatus.providers.map((provider) => (
-                          <div key={`${provider.provider_id}:${provider.uid}`} className="flex items-start gap-3">
-                            <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200 text-xs font-bold">
-                              {provider.provider_id === 'google.com'
-                                ? 'G'
-                                : provider.provider_id === 'github.com'
-                                  ? 'GH'
-                                  : provider.provider_id.slice(0, 2).toUpperCase()}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-slate-900 dark:text-white">{provider.provider_id}</p>
-                              <p className={mutedTextClass}>{provider.email || provider.display_name || 'No provider email available'}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className={mutedTextClass}>No linked providers were returned by the backend.</p>
-                    )}
-                  </div>
+              {/* Password Management */}
+              <div className={cardClass}>
+                <div className="flex items-center justify-between gap-3 text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-900 dark:text-white">
+                    Password Management
+                  </span>
+                  {statusPill('Firebase Auth')}
                 </div>
 
-                <div className="space-y-6">
-                  {/* This is the email-verification setting, not Firebase MFA. */}
-                  <div className={cardClass}>
-                    <div className="flex items-center justify-between gap-3 text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center gap-2 text-slate-900 dark:text-white">
-                        <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        Email verification
-                      </div>
+                <p className={mutedTextClass}>
+                  Change your password or request an email password-reset link.
+                </p>
 
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                          emailVerificationEnabled
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50'
-                            : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50'
-                        }`}
-                      >
-                        {emailVerificationEnabled ? 'Enabled' : 'Disabled'}
-                      </span>
+                <ChangePassword />
+
+                <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
+                  <Link
+                    to="/forgot-password"
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                    Forgot your password? Reset by email
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            {/* Column 2: Email Verification & Security Info */}
+            <div className="space-y-6">
+              {/* Email Verification Card */}
+              <div className={cardClass}>
+                <div className="flex items-center justify-between gap-3 text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2 text-slate-900 dark:text-white">
+                    <ShieldCheck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    Email Verification Service
+                  </div>
+
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                      emailVerificationEnabled
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/50'
+                        : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50'
+                    }`}
+                  >
+                    {emailVerificationEnabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </div>
+
+                <p className={mutedTextClass}>
+                  Verify control of your email address with short-lived security codes sent directly to your inbox.
+                </p>
+
+                {verificationError && (
+                  <div role="alert" className="flex items-start gap-2 p-3 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-300 text-xs">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{verificationError}</span>
+                  </div>
+                )}
+
+                {verificationMessage && (
+                  <div role="status" aria-live="polite" className="flex items-start gap-2 p-3 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 text-xs">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{verificationMessage}</span>
+                  </div>
+                )}
+
+                {!securityStatus?.email_verified ? (
+                  <div className="space-y-3">
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      Verify your email address before enabling this setting.
+                    </p>
+                    <button type="button" disabled className={secondaryButtonClass}>
+                      <Mail className="w-3.5 h-3.5" />
+                      Email Verification Required
+                    </button>
+                  </div>
+                ) : emailVerificationEnabled ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Email security verification is active.
                     </div>
 
+                    {securityStatus?.email_verification_enabled_at && (
+                      <p className={mutedTextClass}>
+                        Enabled on {formatDate(securityStatus.email_verification_enabled_at)}
+                      </p>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => void handleDisableEmailVerification()}
+                      disabled={verificationBusy}
+                      className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg border border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-300 text-xs font-semibold hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
+                    >
+                      {verificationBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      Disable Email Verification
+                    </button>
+                  </div>
+                ) : !codeRequested ? (
+                  <div className="space-y-3">
                     <p className={mutedTextClass}>
-                      Confirm control of your verified email address with a short-lived code. This setting is saved to your account.
+                      A six-digit code will be dispatched to {securityStatus?.email || 'your account email'}.
                     </p>
 
-                    <div className="flex items-start gap-2.5 p-3 rounded-lg border border-blue-200/70 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/20">
-                      <LockKeyhole className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
-                      <p className="text-xs text-blue-800 dark:text-blue-200 leading-relaxed">
-                        This setting does not yet require a second code during sign-in, so it is not login-enforced two-factor authentication.
+                    <button
+                      type="button"
+                      onClick={() => void handleRequestCode()}
+                      disabled={verificationBusy || securityLoading}
+                      className={primaryButtonClass}
+                    >
+                      {verificationBusy ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Mail className="w-3.5 h-3.5" />
+                      )}
+                      {verificationBusy ? 'Sending code…' : 'Send Verification Code'}
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleVerifyCode} className="space-y-3">
+                    <div className="space-y-1">
+                      <label htmlFor="email-verification-code" className="block text-xs font-medium text-slate-700 dark:text-slate-200">
+                        Six-Digit Verification Code
+                      </label>
+                      <input
+                        id="email-verification-code"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        pattern="[0-9]{6}"
+                        maxLength={6}
+                        minLength={6}
+                        required
+                        value={verificationCode}
+                        onChange={(event) => {
+                          setVerificationCode(
+                            event.target.value.replace(/\D/g, '').slice(0, 6),
+                          );
+                          setVerificationError('');
+                        }}
+                        placeholder="000000"
+                        className={`${inputClass} text-center tracking-[0.35em] font-mono text-base`}
+                        disabled={verificationBusy}
+                      />
+                      <p className={mutedTextClass}>
+                        Check your inbox and spam folder. Codes expire in 10 minutes.
                       </p>
                     </div>
 
-                    {verificationError && (
-                      <div role="alert" className="flex items-start gap-2 p-3 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-300 text-xs">
-                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                        <span>{verificationError}</span>
-                      </div>
-                    )}
+                    <button
+                      type="submit"
+                      disabled={verificationBusy || verificationCode.length !== 6}
+                      className={primaryButtonClass}
+                    >
+                      {verificationBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      {verificationBusy ? 'Verifying…' : 'Confirm Code & Enable'}
+                    </button>
 
-                    {verificationMessage && (
-                      <div role="status" aria-live="polite" className="flex items-start gap-2 p-3 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 text-xs">
-                        <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-                        <span>{verificationMessage}</span>
-                      </div>
-                    )}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void handleRequestCode()}
+                        disabled={verificationBusy || resendSeconds > 0}
+                        className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline disabled:text-slate-400 disabled:no-underline"
+                      >
+                        {resendSeconds > 0
+                          ? `Resend available in ${resendSeconds}s`
+                          : 'Resend code'}
+                      </button>
 
-                    {!securityStatus.email_verified ? (
-                      <div className="space-y-3">
-                        <p className="text-xs text-amber-700 dark:text-amber-300">
-                          Verify your email address with Firebase before enabling this setting.
-                        </p>
-                        <button type="button" disabled className={secondaryButtonClass}>
-                          <Mail className="w-3.5 h-3.5" />
-                          Email verification required
-                        </button>
-                      </div>
-                    ) : emailVerificationEnabled ? (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300">
-                          <CheckCircle2 className="w-4 h-4" />
-                          The email-verification setting is active.
-                        </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCodeRequested(false);
+                          setVerificationCode('');
+                          setVerificationError('');
+                          setVerificationMessage('');
+                        }}
+                        disabled={verificationBusy}
+                        className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
 
-                        {securityStatus.email_verification_enabled_at && (
-                          <p className={mutedTextClass}>
-                            Enabled on {formatDate(securityStatus.email_verification_enabled_at)}
-                          </p>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => void handleDisableEmailVerification()}
-                          disabled={verificationBusy}
-                          className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg border border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-300 text-xs font-semibold hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50"
-                        >
-                          {verificationBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                          Disable email verification
-                        </button>
-                      </div>
-                    ) : !codeRequested ? (
-                      <div className="space-y-3">
-                        <p className={mutedTextClass}>
-                          A six-digit code will be sent to {securityStatus.email || 'your verified email address'}.
-                        </p>
-
-                        <button
-                          type="button"
-                          onClick={() => void handleRequestCode()}
-                          disabled={verificationBusy || securityLoading}
-                          className={primaryButtonClass}
-                        >
-                          {verificationBusy ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Mail className="w-3.5 h-3.5" />
-                          )}
-                          {verificationBusy ? 'Sending code…' : 'Send verification code'}
-                        </button>
-                      </div>
-                    ) : (
-                      <form onSubmit={handleVerifyCode} className="space-y-3">
-                        <div className="space-y-1">
-                          <label htmlFor="email-verification-code" className="block text-xs font-medium text-slate-700 dark:text-slate-200">
-                            Six-digit verification code
-                          </label>
-                          <input
-                            id="email-verification-code"
-                            type="text"
-                            inputMode="numeric"
-                            autoComplete="one-time-code"
-                            pattern="[0-9]{6}"
-                            maxLength={6}
-                            minLength={6}
-                            required
-                            value={verificationCode}
-                            onChange={(event) => {
-                              setVerificationCode(
-                                event.target.value.replace(/\D/g, '').slice(0, 6),
-                              );
-                              setVerificationError('');
-                            }}
-                            placeholder="Enter 6-digit code"
-                            className={`${inputClass} text-center tracking-[0.35em] font-mono text-base`}
-                            disabled={verificationBusy}
-                          />
-                          <p className={mutedTextClass}>
-                            Check your inbox and spam folder. Codes expire after 10 minutes.
-                          </p>
-                        </div>
-
-                        <button
-                          type="submit"
-                          disabled={verificationBusy || verificationCode.length !== 6}
-                          className={primaryButtonClass}
-                        >
-                          {verificationBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                          {verificationBusy ? 'Verifying…' : 'Verify code and enable'}
-                        </button>
-
-                        <div className="flex flex-wrap items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => void handleRequestCode()}
-                            disabled={verificationBusy || resendSeconds > 0}
-                            className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline disabled:text-slate-400 disabled:no-underline"
-                          >
-                            {resendSeconds > 0
-                              ? `Resend available in ${resendSeconds}s`
-                              : 'Resend code'}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCodeRequested(false);
-                              setVerificationCode('');
-                              setVerificationError('');
-                              setVerificationMessage('');
-                            }}
-                            disabled={verificationBusy}
-                            className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-50"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </form>
-                    )}
-                  </div>
-
-
+              {/* Account Security Information Card */}
+              <div className={cardClass}>
+                <div className="flex items-center justify-between text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-900 dark:text-white">Account Security Details</span>
+                  {securityStatus?.email_verified ? (
+                    <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Verified Account</span>
+                  ) : statusPill('Unverified')}
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className={mutedTextClass}>Account Email</span>
+                  <span className="text-xs text-slate-900 dark:text-white break-all">{securityStatus?.email || emailAddress}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className={mutedTextClass}>Account Created</span>
+                  <span className="text-xs text-slate-900 dark:text-white">{formatDate(securityStatus?.created_at)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className={mutedTextClass}>Last Sign-in</span>
+                  <span className="text-xs text-slate-900 dark:text-white">{formatDate(securityStatus?.last_sign_in_at)}</span>
                 </div>
               </div>
 
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => void loadSecurityData()}
-                  disabled={securityLoading || verificationBusy}
-                  className={secondaryButtonClass}
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${securityLoading ? 'animate-spin' : ''}`} />
-                  Refresh security status
-                </button>
+              {/* Linked Sign-in Providers Card */}
+              <div className={cardClass}>
+                <div className="flex items-center justify-between text-xs font-semibold pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <span className="text-slate-900 dark:text-white">Linked Authentication Providers</span>
+                  {statusPill(`${securityStatus?.providers?.length || 1} provider(s)`)}
+                </div>
+                {securityStatus?.providers?.length ? (
+                  <div className="space-y-3">
+                    {securityStatus.providers.map((provider) => (
+                      <div key={`${provider.provider_id}:${provider.uid}`} className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200 text-xs font-bold">
+                          {provider.provider_id === 'google.com'
+                            ? 'G'
+                            : provider.provider_id === 'github.com'
+                              ? 'GH'
+                              : provider.provider_id.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-slate-900 dark:text-white">{provider.provider_id}</p>
+                          <p className={mutedTextClass}>{provider.email || provider.display_name || 'No provider email'}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={mutedTextClass}>Password authentication active.</p>
+                )}
               </div>
-            </>
-          ) : (
-            <div className={cardClass}>
-              <p className={mutedTextClass}>Security information is unavailable.</p>
-              <button
-                type="button"
-                onClick={() => void loadSecurityData()}
-                className={primaryButtonClass}
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Retry
-              </button>
             </div>
-          )}
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => void loadSecurityData()}
+              disabled={securityLoading || verificationBusy}
+              className={secondaryButtonClass}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${securityLoading ? 'animate-spin' : ''}`} />
+              Refresh Security Status
+            </button>
+          </div>
         </div>
       )}
     </div>

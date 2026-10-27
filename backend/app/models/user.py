@@ -27,6 +27,7 @@ def user_to_response(uid: str, data: dict[str, Any]) -> dict[str, Any]:
         "avatar_url": data.get("avatar_url", ""),
         "created_at": data.get("created_at"),
         "role": role,
+        "two_factor_enabled": data.get("two_factor_enabled", False),
     }
 
 def get_user(uid: str) -> dict[str, Any] | None:

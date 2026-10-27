@@ -150,3 +150,61 @@ export async function disableEmailVerification(): Promise<EmailVerificationDisab
 
   return response.data;
 }
+
+
+export interface TotpSetupResponse {
+  secret: string;
+  qr_code_url: string;
+  account_name: string;
+  issuer: string;
+}
+
+export interface TotpVerifyResponse {
+  success: boolean;
+  message: string;
+  two_factor_enabled: boolean;
+}
+
+/**
+ * Generate a standard RFC 6238 TOTP setup key and QR code URL
+ */
+export async function setupTotp(): Promise<TotpSetupResponse> {
+  const response = await apiClient.post<TotpSetupResponse>(
+    '/account/security/totp/setup'
+  );
+  return response.data;
+}
+
+/**
+ * Verify code and enable TOTP two-factor authentication
+ */
+export async function verifyTotp(code: string): Promise<TotpVerifyResponse> {
+  const response = await apiClient.post<TotpVerifyResponse>(
+    '/account/security/totp/verify',
+    { code }
+  );
+  return response.data;
+}
+
+/**
+ * Disable TOTP two-factor authentication
+ */
+export async function disableTotp(): Promise<{ success: boolean; message: string }> {
+  const response = await apiClient.delete<{ success: boolean; message: string }>(
+    '/account/security/totp'
+  );
+  return response.data;
+}
+
+/**
+ * Verify 2FA code during login challenge
+ */
+export async function verifyLogin2FA(
+  code: string
+): Promise<{ success: boolean; verified: boolean }> {
+  const response = await apiClient.post<{ success: boolean; verified: boolean }>(
+    '/auth/verify-2fa',
+    { code }
+  );
+  return response.data;
+}

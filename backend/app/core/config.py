@@ -1,5 +1,8 @@
-
+import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+ENV_PATH = os.path.join(BACKEND_DIR, ".env")
 
 
 class Settings(BaseSettings):
@@ -7,7 +10,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     FRONTEND_URL: str = "http://localhost:5173"
 
-    FIREBASE_SERVICE_ACCOUNT_PATH: str = "secrets/firebase-service-account.json"
+    FIREBASE_SERVICE_ACCOUNT_PATH: str = "secrets/ServiceAccountKey.json"
 
     # Cloudinary is used for file uploads, not database storage.
     CLOUDINARY_CLOUD_NAME: str = ""
@@ -35,7 +38,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     MAIL_FROM: str = ""
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=ENV_PATH,
         env_file_encoding="utf-8",
         extra="ignore",
         

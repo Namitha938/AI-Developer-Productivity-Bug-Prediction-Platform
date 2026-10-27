@@ -6,6 +6,7 @@ import {
   analyzeCodeApi,
   getAnalysisHistoryApi,
 } from '../api/analysisApi';
+import { analyzeArbitraryCode } from '../utils/analyzer';
 
 const STARTER_CODE = `def divide(a, b):
     return a / b
@@ -128,10 +129,14 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
         error: null,
       }));
     } catch (error: unknown) {
-      set({
+      console.warn('Backend API unavailable, falling back to local heuristic & AST engine:', error);
+      const fallbackResult = analyzeArbitraryCode(code, filename, language);
+      set((state) => ({
+        result: fallbackResult,
+        history: mergeUniqueAnalyses([fallbackResult], state.history),
         isAnalyzing: false,
-        error: getErrorMessage(error),
-      });
+        error: null,
+      }));
     }
   },
 

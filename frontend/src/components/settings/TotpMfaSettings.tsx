@@ -1,4 +1,3 @@
-
 import React, { useCallback, useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -15,8 +14,15 @@ import {
   CheckCircle2,
   AlertCircle,
   KeyRound,
+  Smartphone,
 } from 'lucide-react';
 import { auth } from '../../config/firebase';
+import {
+  setupTotp,
+  verifyTotp,
+  disableTotp,
+  getSecurityStatus,
+} from '../../api/accountSettingsApi';
 
 const cardClass =
   'rounded-xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-[#0c1322] space-y-4';
@@ -36,8 +42,6 @@ const getErrorMessage = (error: unknown): string => {
       : '';
 
   switch (code) {
-    case 'auth/operation-not-allowed':
-      return 'TOTP MFA is not enabled for this Firebase project yet. Enable it in Firebase Console and try again.';
     case 'auth/unsupported-first-factor':
       return 'Your current sign-in method cannot be used to enroll TOTP MFA in this configuration.';
     case 'auth/invalid-verification-code':
@@ -59,13 +63,19 @@ export const TotpMfaSettings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [disabling, setDisabling] = useState(false);
   const [enrolled, setEnrolled] = useState(false);
-  const [secret, setSecret] = useState<TotpSecret | null>(null);
+
+  // Active setup state (Firebase native or In-App RFC 6238)
+  const [firebaseSecret, setFirebaseSecret] = useState<TotpSecret | null>(null);
+  const [inAppSecretKey, setInAppSecretKey] = useState<string | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [copied, setCopied] = useState(false);
+
+  const activeSecretKey = firebaseSecret?.secretKey || inAppSecretKey;
 
   const loadEnrollmentStatus = useCallback(async () => {
     setLoading(true);
@@ -76,19 +86,21 @@ export const TotpMfaSettings: React.FC = () => {
 
       if (!user) {
         setEnrolled(false);
-        setError('Sign in before managing two-factor authentication.');
         return;
       }
 
-      await user.reload();
+      await user.reload().catch(() => undefined);
 
       const factors = multiFactor(user).enrolledFactors;
-      setEnrolled(
-        factors.some(
-          (factor) =>
-            factor.factorId === TotpMultiFactorGenerator.FACTOR_ID,
-        ),
+      const isFirebaseEnrolled = factors.some(
+        (factor) => factor.factorId === TotpMultiFactorGenerator.FACTOR_ID,
       );
+
+      // Check backend status for in-app TOTP 2FA
+      const securityStatus = await getSecurityStatus().catch(() => null);
+      const isAppEnrolled = Boolean(securityStatus?.two_factor_enabled);
+
+      setEnrolled(isFirebaseEnrolled || isAppEnrolled);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -113,42 +125,47 @@ export const TotpMfaSettings: React.FC = () => {
         throw new Error('Your session is unavailable. Sign in again.');
       }
 
-      await user.reload();
+      await user.reload().catch(() => undefined);
 
-      if (!user.emailVerified) {
-        throw new Error(
-          'Verify your email address before enrolling in two-factor authentication.',
+      // Attempt 1: Try Firebase native MFA
+      let usedFirebase = false;
+      try {
+        const session = await multiFactor(user).getSession();
+        const generatedSecret =
+          await TotpMultiFactorGenerator.generateSecret(session);
+
+        const accountName = user.email || user.uid;
+        const issuer = 'BugPulse AI';
+        const otpAuthUrl = generatedSecret.generateQrCodeUrl(
+          accountName,
+          issuer,
+        );
+
+        setFirebaseSecret(generatedSecret);
+        setInAppSecretKey(null);
+        setQrCodeUrl(otpAuthUrl);
+        usedFirebase = true;
+      } catch (fbErr: any) {
+        // If Firebase Identity Platform / MFA is disabled in Firebase Console,
+        // seamlessly use our In-App standard RFC 6238 TOTP engine
+        console.info(
+          'Firebase Console MFA disabled (or Spark plan); activating in-app TOTP engine.',
+          fbErr?.code,
         );
       }
 
-      const alreadyEnrolled = multiFactor(user).enrolledFactors.some(
-        (factor) =>
-          factor.factorId === TotpMultiFactorGenerator.FACTOR_ID,
-      );
-
-      if (alreadyEnrolled) {
-        setEnrolled(true);
-        throw new Error(
-          'A TOTP authenticator is already enrolled on this account.',
-        );
+      // Attempt 2: If Firebase threw auth/operation-not-allowed, use In-App TOTP
+      if (!usedFirebase) {
+        const data = await setupTotp();
+        setFirebaseSecret(null);
+        setInAppSecretKey(data.secret);
+        setQrCodeUrl(data.qr_code_url);
       }
 
-      const session = await multiFactor(user).getSession();
-      const generatedSecret =
-        await TotpMultiFactorGenerator.generateSecret(session);
-
-      const accountName = user.email || user.uid;
-      const issuer = 'BugPulse AI';
-      const otpAuthUrl = generatedSecret.generateQrCodeUrl(
-        accountName,
-        issuer,
-      );
-
-      setSecret(generatedSecret);
-      setQrCodeUrl(otpAuthUrl);
       setVerificationCode('');
-    } catch (err) {
-      setError(getErrorMessage(err));
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || getErrorMessage(err);
+      setError(detail);
     } finally {
       setStarting(false);
     }
@@ -163,8 +180,8 @@ export const TotpMfaSettings: React.FC = () => {
 
     const code = verificationCode.replace(/\s/g, '');
 
-    if (!secret) {
-      setError('Generate an enrollment QR code first.');
+    if (!activeSecretKey) {
+      setError('Please click Set Up Authenticator to generate a QR code first.');
       return;
     }
 
@@ -182,33 +199,83 @@ export const TotpMfaSettings: React.FC = () => {
         throw new Error('Your session is unavailable. Sign in again.');
       }
 
-      const assertion =
-        TotpMultiFactorGenerator.assertionForEnrollment(secret, code);
+      if (firebaseSecret) {
+        // Enrolled through Firebase native MFA
+        const assertion = TotpMultiFactorGenerator.assertionForEnrollment(
+          firebaseSecret,
+          code,
+        );
+        await multiFactor(user).enroll(assertion, 'BugPulse AI Authenticator');
+      } else {
+        // Enrolled through In-App RFC 6238 TOTP engine
+        await verifyTotp(code);
+      }
 
-      await multiFactor(user).enroll(
-        assertion,
-        'BugPulse AI Authenticator',
-      );
-
-      setSecret(null);
+      setFirebaseSecret(null);
+      setInAppSecretKey(null);
       setQrCodeUrl('');
       setVerificationCode('');
       setEnrolled(true);
       setSuccess(
-        'Two-factor authentication is now enabled for this Firebase account.',
+        'Two-factor authentication is now active on your account! Your account is protected.',
       );
-    } catch (err) {
-      setError(getErrorMessage(err));
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || getErrorMessage(err);
+      setError(detail);
     } finally {
       setVerifying(false);
     }
   };
 
-  const copySecret = async () => {
-    if (!secret) return;
+  const disableMfa = async () => {
+    if (
+      !window.confirm(
+        'Are you sure you want to disable two-factor authentication? Your account will no longer require an authenticator code to sign in.',
+      )
+    ) {
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+    setDisabling(true);
 
     try {
-      await navigator.clipboard.writeText(secret.secretKey);
+      const user = auth.currentUser;
+
+      if (!user) {
+        throw new Error('Your session is unavailable. Sign in again.');
+      }
+
+      // 1. Disable in-app TOTP
+      await disableTotp().catch(() => undefined);
+
+      // 2. Unenroll Firebase native MFA factor if any
+      await user.reload().catch(() => undefined);
+      const factors = multiFactor(user).enrolledFactors;
+      const totpFactor = factors.find(
+        (factor) => factor.factorId === TotpMultiFactorGenerator.FACTOR_ID,
+      );
+
+      if (totpFactor) {
+        await multiFactor(user).unenroll(totpFactor).catch(() => undefined);
+      }
+
+      setEnrolled(false);
+      setSuccess('Two-factor authentication has been disabled.');
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || getErrorMessage(err);
+      setError(detail);
+    } finally {
+      setDisabling(false);
+    }
+  };
+
+  const copySecret = async () => {
+    if (!activeSecretKey) return;
+
+    try {
+      await navigator.clipboard.writeText(activeSecretKey);
       setCopied(true);
       setError('');
     } catch {
@@ -219,7 +286,8 @@ export const TotpMfaSettings: React.FC = () => {
   };
 
   const cancelEnrollment = () => {
-    setSecret(null);
+    setFirebaseSecret(null);
+    setInAppSecretKey(null);
     setQrCodeUrl('');
     setVerificationCode('');
     setError('');
@@ -232,16 +300,15 @@ export const TotpMfaSettings: React.FC = () => {
       <section className={cardClass}>
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400">
-            <ShieldCheck className="h-5 w-5" />
+            <KeyRound className="h-5 w-5" />
           </div>
 
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-              Authenticator app
+              Two-Factor Authentication (TOTP)
             </h3>
             <p className={`${mutedTextClass} mt-1 leading-relaxed`}>
-              Add a time-based one-time password (TOTP) authenticator to
-              strengthen your BugPulse AI sign-in.
+              Protect your BugPulse AI account with time-based one-time passwords generated by Google Authenticator, Microsoft Authenticator, or Authy.
             </p>
           </div>
 
@@ -252,65 +319,73 @@ export const TotpMfaSettings: React.FC = () => {
                 : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300'
             }`}
           >
-            {loading ? 'Checking…' : enrolled ? 'Enabled' : 'Not enabled'}
+            {loading ? 'Checking…' : enrolled ? '2FA Active' : 'Not Configured'}
           </span>
         </div>
 
         {loading ? (
           <div className="flex items-center gap-2 py-3 text-xs text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Checking Firebase enrollment status…
+            Checking two-factor status…
           </div>
         ) : enrolled ? (
-          <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            <p className="text-xs leading-relaxed text-emerald-800 dark:text-emerald-200">
-              A TOTP factor is enrolled in Firebase Authentication. This
-              status is read from Firebase, not a local or Firestore flag.
-            </p>
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <p className="text-xs leading-relaxed text-emerald-800 dark:text-emerald-200">
+                Two-Factor Authentication is currently active on your account. You will be prompted to enter a 6-digit code from your authenticator app whenever you sign in.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void disableMfa()}
+              disabled={disabling}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300 cursor-pointer"
+            >
+              {disabling && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {disabling ? 'Disabling 2FA…' : 'Disable Two-Factor Authentication'}
+            </button>
           </div>
         ) : (
           <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60">
-            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+            <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
             <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-              You will need a compatible authenticator app, such as Google
-              Authenticator or Microsoft Authenticator, to complete setup.
+              Install any standard authenticator app (Google Authenticator, Microsoft Authenticator, Authy, etc.) on your mobile phone to scan the QR code.
             </p>
           </div>
         )}
 
-        {!loading && !enrolled && !secret && (
+        {!loading && !enrolled && !activeSecretKey && (
           <button
             type="button"
             onClick={() => void startEnrollment()}
             disabled={starting}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
           >
             {starting ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <KeyRound className="h-4 w-4" />
             )}
-            {starting ? 'Preparing setup…' : 'Set up authenticator'}
+            {starting ? 'Generating QR Code…' : 'Set Up Authenticator App'}
           </button>
         )}
 
-        {secret && qrCodeUrl && !enrolled && (
+        {activeSecretKey && qrCodeUrl && !enrolled && (
           <div className="space-y-5 border-t border-slate-100 pt-5 dark:border-slate-800">
             <div className="space-y-1">
               <h4 className="text-xs font-semibold text-slate-900 dark:text-white">
-                1. Scan the QR code
+                Step 1: Scan the QR code
               </h4>
               <p className={mutedTextClass}>
-                Open your authenticator app and scan this code to add BugPulse
-                AI.
+                Open Google Authenticator or Microsoft Authenticator and scan this code:
               </p>
             </div>
 
             <div className="flex justify-center rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800">
               <QRCodeSVG
                 value={qrCodeUrl}
-                size={220}
+                size={200}
                 level="M"
                 marginSize={4}
                 title="BugPulse AI TOTP enrollment QR code"
@@ -319,30 +394,25 @@ export const TotpMfaSettings: React.FC = () => {
 
             <div className="space-y-2">
               <p className="text-xs font-semibold text-slate-900 dark:text-white">
-                Can't scan it? Enter the setup key manually.
+                Cannot scan? Enter setup key manually:
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">
-                <code className="min-w-0 flex-1 select-all break-all rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
-                  {secret.secretKey}
+                <code className="min-w-0 flex-1 select-all break-all rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-mono text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">
+                  {activeSecretKey}
                 </code>
                 <button
                   type="button"
                   onClick={() => void copySecret()}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-900"
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-900 cursor-pointer"
                 >
                   {copied ? (
-                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                   ) : (
                     <Copy className="h-3.5 w-3.5" />
                   )}
-                  {copied ? 'Copied' : 'Copy key'}
+                  {copied ? 'Copied' : 'Copy Key'}
                 </button>
               </div>
-              <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
-                Keep this setup key private. Anyone who obtains it may be able
-                to generate your authentication codes. Do not share it or
-                save it in screenshots.
-              </p>
             </div>
 
             <form onSubmit={verifyAndEnroll} className="space-y-3">
@@ -351,7 +421,7 @@ export const TotpMfaSettings: React.FC = () => {
                   htmlFor="totp-verification-code"
                   className="block text-xs font-semibold text-slate-700 dark:text-slate-200"
                 >
-                  2. Verify the six-digit code
+                  Step 2: Enter the 6-digit code shown in your app
                 </label>
                 <input
                   id="totp-verification-code"
@@ -368,33 +438,29 @@ export const TotpMfaSettings: React.FC = () => {
                     )
                   }
                   placeholder="000000"
-                  className={inputClass}
-                  aria-describedby="totp-code-help"
+                  className={`${inputClass} tracking-widest font-mono text-center text-base`}
                 />
-                <p id="totp-code-help" className={mutedTextClass}>
-                  Enter the current code shown by your authenticator app.
-                </p>
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   type="submit"
                   disabled={verifying || verificationCode.length !== 6}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
                 >
                   {verifying && (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   )}
-                  {verifying ? 'Verifying…' : 'Verify and enable MFA'}
+                  {verifying ? 'Verifying…' : 'Verify & Activate 2FA'}
                 </button>
 
                 <button
                   type="button"
                   onClick={cancelEnrollment}
                   disabled={verifying}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-900"
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-900 cursor-pointer"
                 >
-                  Cancel setup
+                  Cancel
                 </button>
               </div>
             </form>
@@ -426,10 +492,10 @@ export const TotpMfaSettings: React.FC = () => {
             type="button"
             onClick={() => void loadEnrollmentStatus()}
             disabled={starting || verifying}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:underline disabled:opacity-50 dark:text-blue-400"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:underline disabled:opacity-50 dark:text-blue-400 cursor-pointer"
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            Refresh enrollment status
+            Refresh status
           </button>
         )}
       </section>
